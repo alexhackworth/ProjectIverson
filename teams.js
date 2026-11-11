@@ -1,0 +1,35 @@
+// NBA team palettes: [primary, secondary, tertiary].
+// Source: teamcolorcodes.com (Utah Jazz values approximate the 2025 purple/black/sky-blue rebrand).
+// Used only for colors and names; no logos or court artwork are reproduced.
+window.PI_TEAMS = [
+  {abbr:"ATL", city:"Atlanta",       name:"Hawks",         colors:["#E03A3E","#C1D32F","#26282A"]},
+  {abbr:"BOS", city:"Boston",        name:"Celtics",       colors:["#007A33","#BA9653","#963821"]},
+  {abbr:"BKN", city:"Brooklyn",      name:"Nets",          colors:["#000000","#FFFFFF","#707271"]},
+  {abbr:"CHA", city:"Charlotte",     name:"Hornets",       colors:["#1D1160","#00788C","#A1A1A4"]},
+  {abbr:"CHI", city:"Chicago",       name:"Bulls",         colors:["#CE1141","#000000","#FFFFFF"]},
+  {abbr:"CLE", city:"Cleveland",     name:"Cavaliers",     colors:["#860038","#041E42","#FDBB30"]},
+  {abbr:"DAL", city:"Dallas",        name:"Mavericks",     colors:["#00538C","#002B5E","#B8C4CA"]},
+  {abbr:"DEN", city:"Denver",        name:"Nuggets",       colors:["#0E2240","#FEC524","#8B2131"]},
+  {abbr:"DET", city:"Detroit",       name:"Pistons",       colors:["#C8102E","#1D42BA","#BEC0C2"]},
+  {abbr:"GSW", city:"Golden State",  name:"Warriors",      colors:["#1D428A","#FFC72C","#FFFFFF"]},
+  {abbr:"HOU", city:"Houston",       name:"Rockets",       colors:["#CE1141","#000000","#C4CED4"]},
+  {abbr:"IND", city:"Indiana",       name:"Pacers",        colors:["#002D62","#FDBB30","#BEC0C2"]},
+  {abbr:"LAC", city:"LA",            name:"Clippers",      colors:["#C8102E","#1D428A","#BEC0C2"]},
+  {abbr:"LAL", city:"Los Angeles",   name:"Lakers",        colors:["#552583","#FDB927","#000000"]},
+  {abbr:"MEM", city:"Memphis",       name:"Grizzlies",     colors:["#5D76A9","#12173F","#F5B112"]},
+  {abbr:"MIA", city:"Miami",         name:"Heat",          colors:["#98002E","#F9A01B","#000000"]},
+  {abbr:"MIL", city:"Milwaukee",     name:"Bucks",         colors:["#00471B","#EEE1C6","#0077C0"]},
+  {abbr:"MIN", city:"Minnesota",     name:"Timberwolves",  colors:["#0C2340","#236192","#78BE20"]},
+  {abbr:"NOP", city:"New Orleans",   name:"Pelicans",      colors:["#0C2340","#C8102E","#85714D"]},
+  {abbr:"NYK", city:"New York",      name:"Knicks",        colors:["#006BB6","#F58426","#BEC0C2"]},
+  {abbr:"OKC", city:"Oklahoma City", name:"Thunder",       colors:["#007AC1","#EF3B24","#002D62"]},
+  {abbr:"ORL", city:"Orlando",       name:"Magic",         colors:["#0077C0","#C4CED4","#000000"]},
+  {abbr:"PHI", city:"Philadelphia",  name:"76ers",         colors:["#006BB6","#ED174C","#002B5C"]},
+  {abbr:"PHX", city:"Phoenix",       name:"Suns",          colors:["#1D1160","#E56020","#F9AD1B"]},
+  {abbr:"POR", city:"Portland",      name:"Trail Blazers", colors:["#E03A3E","#000000","#FFFFFF"]},
+  {abbr:"SAC", city:"Sacramento",    name:"Kings",         colors:["#5A2D81","#63727A","#000000"]},
+  {abbr:"SAS", city:"San Antonio",   name:"Spurs",         colors:["#C4CED4","#000000","#FFFFFF"]},
+  {abbr:"TOR", city:"Toronto",       name:"Raptors",       colors:["#CE1141","#000000","#A1A1A4"]},
+  {abbr:"UTA", city:"Utah",          name:"Jazz",          colors:["#4B2E83","#000000","#7BAFD4"]},
+  {abbr:"WAS", city:"Washington",    name:"Wizards",       colors:["#002B5C","#E31837","#C4CED4"]}
+];
