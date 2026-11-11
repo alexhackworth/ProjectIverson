@@ -203,8 +203,10 @@ async function loadAll(manual){
     ]);
     if(needSched){ S.schedule = sched || []; S.schedAt = now; }
     if(needSeason){ S.season = seasonStats || []; S.seasonAt = now; }
+    if(window.PI_CONSOLE && wk===S.maxWeek) await PI_CONSOLE.fetchLive().catch(e=>console.warn("live scores unavailable", e));
     S.raw = { wk, matchups: matchups||[], stats: stats||[], projs: projs||[] };
     S.data = build(wk, S.raw.matchups, S.raw.stats, S.raw.projs);
+    if(window.PI_CONSOLE) try{ PI_CONSOLE.prepare(S.data); }catch(e){ console.error("slot engine", e); }
     S.lastOk = Date.now();
     $("err").hidden = true;
     render(); setStatus("ok");
@@ -319,7 +321,7 @@ function build(wk, matchups, stats, projs){
   }
   const mine = teamModel(cfg.rosterId);
   const oppRid = mine && matchups.find(x=>x.matchup_id===mine.matchup_id && x.roster_id!==cfg.rosterId)?.roster_id;
-  return {wk, days, today, mine, opp: oppRid ? teamModel(oppRid) : null, weekKey, teamModel};
+  return {wk, days, today, mine, opp: oppRid ? teamModel(oppRid) : null, weekKey, teamModel, playerModel, projBy, slotsAll};
 }
 
 // ---------------------------------------------------------------- render: Lock Console
@@ -429,6 +431,7 @@ function dayPlan(p, d, D){
   return {tone:"plan", head:`Projected ${f1(g.proj)} · lock if ${Math.ceil(g.thr)}+`, body:`If he scores ${Math.ceil(g.thr)} or more ${dayLong(d)}, lock him right after the game. Below that, let it ride.`};
 }
 function renderAct(D){
+  if(D.plan && window.PI_CONSOLE) return PI_CONSOLE.renderAct(D);
   const ps = D.mine.starters;
   if(S.focusDay){
     const d = S.focusDay;
@@ -481,6 +484,7 @@ function cellHTML(p, g, D){
   return `<div class="${cls}" title="${esc(title)}"><span class="o">${g.home?"vs":"@"} ${esc(g.opp||"")}</span><span class="v">${val}</span><span class="tag">${tag || (g.st==="pre"?"proj":"")}</span></div>`;
 }
 function renderGrid(D){
+  if(D.plan && window.PI_CONSOLE) return PI_CONSOLE.renderGrid(D);
   const t = D.mine, cols = D.days.length + 6, fd = S.focusDay;
   $("grid").querySelector("thead").innerHTML = `<tr><th>Slot</th><th>Player</th><th class="r">Avg</th>${D.days.map(d=>`<th class="dayh ${d===D.today?"today":""} ${fd===d?"focus":""}">${dayName(d)} ${dayNum(d)}</th>`).join("")}<th class="r">Banked</th><th>Call</th><th>Flags</th></tr>`;
   const row = p => {
@@ -636,6 +640,7 @@ function openSettings(){
   root.innerHTML = `<div class="scrim" style="place-items:stretch end;padding:0" id="drawScrim"><aside class="drawer glass" role="dialog" aria-modal="true" aria-labelledby="setTitle">
     <div class="drawhead"><h2 id="setTitle">Settings</h2><button class="iconbtn" id="closeSet" aria-label="Close settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <section><h3>Favorite team</h3><select id="setTeam" class="sel" aria-label="Favorite team"><option value="">No team (neutral colors)</option>${TEAMS.map(x=>`<option value="${x.abbr}" ${x.abbr===cfg.team?"selected":""}>${esc(x.city)} ${esc(x.name)}</option>`).join("")}</select></section>
+    <section><h3>Free-agent adds in the plan</h3><div class="schemes" id="faAdds">${[0,1,2,3].map(n=>`<button class="scheme ${(cfg.faAdds??2)===n?"sel":""}" data-fa="${n}" aria-pressed="${(cfg.faAdds??2)===n}"><span>${n===0?"Bench only":n+" per week"}</span></button>`).join("")}</div><p class="note" style="margin:8px 0 0">How many free agents the slot plan may suggest adding (each needs a drop).</p></section>
     <section><h3>Color scheme</h3><div class="schemes" id="schemes">${schemes}</div><p class="note" style="margin:8px 0 0">The first color leads: it sets the accent and the painted lane on the court.</p></section>
     <section><h3>Your team in ${esc((S.league?.name||"this league").trim())}</h3><select id="setRoster" class="sel" aria-label="Your fantasy team">${rosterOpts}</select></section>
     <section><h3>Switch league</h3><div id="setFinder"></div><button class="btn" id="useDefault" style="margin-top:10px">Back to ${esc(DEFAULT_LABEL.league)}</button></section>
@@ -650,6 +655,7 @@ function openSettings(){
   $("closeSet").addEventListener("click", close);
   $("drawScrim").addEventListener("click", e=>{ if(e.target.id==="drawScrim") close(); });
   $("setTeam").addEventListener("change", e=>{ cfg.team = e.target.value || null; cfg.scheme = 0; saveCfg(); applyTheme(); openSettings(); });
+  $("faAdds").addEventListener("click", e=>{ const b=e.target.closest("[data-fa]"); if(!b) return; cfg.faAdds = Number(b.dataset.fa); saveCfg(); if(S.data && window.PI_CONSOLE){ PI_CONSOLE.prepare(S.data); render(); } openSettings(); });
   $("schemes").addEventListener("click", e=>{ const b=e.target.closest("[data-scheme]"); if(!b) return; cfg.scheme = Number(b.dataset.scheme); saveCfg(); applyTheme(); openSettings(); });
   $("setRoster").addEventListener("change", e=>{ cfg.rosterId = Number(e.target.value); saveCfg(); PI.tabs?.reset?.(); loadAll(); openSettings(); });
   leagueFinder($("setFinder"), pick => { cfg.leagueId = pick.leagueId; cfg.rosterId = pick.rosterId; saveCfg(); S.data=null; loadAll(true); });
@@ -663,13 +669,13 @@ function openSettings(){
 // ---------------------------------------------------------------- tour
 const TOUR = [
   { tab:"console", sel:"#matchup", k:"Matchup", t:"Where your week stands",
-    p:"Live points from Sleeper on the left, projected finish on the right. Projections assume you keep making the best lock calls for the rest of the week." },
+    p:"Live points from Sleeper on the left, projected finish on the right. Projections assume you keep making the best calls for the rest of the week, including bench subs." },
   { tab:"console", sel:"#weekCard", k:"The week", t:"Tap a day for its game plan",
-    p:"Each dot is one of your starters playing that day; lit dots are still in play. Tap a day and the console switches to that day's plan: who plays, and the score that should make you lock each of them." },
-  { tab:"console", sel:"#actNow", k:"Act now", t:"Your to-do list before tip-off",
-    p:"LOCK: bank his score now in Sleeper. ROLL: his remaining games are worth more on average, so let it ride. WAIT: he hasn't played yet, and 'lock if 32+' is the score that would be worth locking." },
+    p:"Each dot is one of your starters playing that day; lit dots are still in play. Tap a day for that day's slot-by-slot plan: who goes in each slot, and the score that should make you lock him." },
+  { tab:"console", sel:"#actNow", k:"Tonight's moves", t:"Decisions belong to slots, not players",
+    p:"Each lineup slot can draw on your bench (and free agents) until it's locked. SUB IN: start a bench player before his tip-off. LOCK: bank the slot's score before its player tips again. SWAP: a live game is going badly, pull him for someone who hasn't tipped. ROLL: keep the slot open for a better draw later." },
   { tab:"console", sel:"#gridCard", k:"Lock grid", t:"How to read a row",
-    p:"Bold numbers are points he scored; italic numbers are projections. The team-colored box is the score counting right now, green is a locked game, and 'lock if 32+' under a future game means: if he scores 32 or more there, lock him right after." },
+    p:"Bold numbers are points he scored; italic numbers are projections. The team-colored box is the score counting right now, green is a locked game, and 'UTIL · lock if 32+' under a future game means: he's planned for the UTIL slot that night, and if he scores 32 or more, lock him right after. 'not used' means another player is a better use of that night." },
   { tab:"console", sel:"[data-mark], #gridCard", k:"One quirk", t:"\"I locked this\"",
     p:"Right after a game, Sleeper's data can't tell a lock from a rolling score until his next game. If you locked him, tap \"I locked this\" so this device knows." },
   { tab:"console", sel:"#tabbar", k:"More tabs", t:"Performance, Team, Players, Trade Lab",
@@ -748,7 +754,7 @@ document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState=
 // ---------------------------------------------------------------- shared namespace for tabs.js
 window.PI = { S, get cfg(){ return cfg; }, DEFAULTS, M, API, API2, $, esc, f1, f2, store, getJSON, scorer, contValue, eMax, scratchFor,
   etToday, addDays, mondayOf, shortDate, dayName, dayLong, dayNum, gameState, teamLabel, teamBy, TEAMS, pill, flagHTML, track, TROPHY,
-  showTab, get current(){ return current; } };
+  showTab, get current(){ return current; }, PILL, saveCfg: () => saveCfg() };
 
 // ---------------------------------------------------------------- boot
 track("visit");

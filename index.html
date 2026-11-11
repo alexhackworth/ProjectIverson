@@ -525,7 +525,7 @@ footer a{color:var(--ink-2)}
             <span><i class="sw" style="border-color:var(--warn)"></i>Live</span>
           </div>
         </div>
-        <div class="gridhelp"><span><b>Bold</b> = points he scored</span><span><i>Italic</i> = projected points</span><span><b>Lock if 32+</b> = if he scores 32 or more in that game, lock him right after it</span><span><b>Banked</b> = the score counting for him right now</span></div>
+        <div class="gridhelp"><span><b>Bold</b> = points he scored</span><span><i>Italic</i> = projected points</span><span><b>UTIL · lock if 32+</b> = planned for the UTIL slot that night; lock him right after if he scores 32+</span><span><b>Not used</b> = someone else is the better use of that night</span><span><b>Banked</b> = the score counting in that slot right now</span></div>
         <div class="tablewrap"><table id="grid"><thead></thead><tbody><tr><td class="muted">Loading roster…</td></tr></tbody></table></div>
       </section>
 
@@ -534,8 +534,11 @@ footer a{color:var(--ink-2)}
         <ul>
           <li><b>Lock status comes from Sleeper.</b> In Lock-In, a player's weekly score equals one of his games. If it matches an earlier game and not his latest, he's locked. If it matches his latest game, he's either rolling or was locked on that game, and his next game settles it. Use "I locked this" to mark it on your device until then.</li>
           <li><b>Points use your league's scoring</b> applied to Sleeper's game stats and RotoWire projections, so totals match the Sleeper app.</li>
+          <li><b>Calls belong to lineup slots, not players.</b> Until a slot is locked, it can draw on any eligible player (bench or free agent) whose game hasn't tipped yet, in tip-off order. A player in a slot can be pulled any time, even mid-game, but a score only counts if he stays in the slot, and he can be locked only once his game is final. Each night, CourtVision assigns your available players to open slots (slots with the lowest banked score and the tightest position rules pick first) and works backward through the week to find what each slot is worth if you keep making the best call. A slot's banked score is safe only until its player plays again or is benched, so "Lock before tip-off" means lock it before his next game starts.</li>
+          <li><b>Live games: hold or swap.</b> While a slot's player is mid-game, CourtVision projects his final from his points and minutes so far, the quarter and clock, blowout risk (down or up 20+ after halftime) and foul trouble. It recommends a swap only when holding is worth less than throwing out his points and starting someone who hasn't tipped.</li>
+          <li><b>Free agents</b> appear in the plan (marked FA · add) only if adding one beats your bench. Each add needs a drop. Set how many the plan may use in Settings.</li>
           <li><b>LOCK vs ROLL is an optimal-stopping call.</b> Working backward from his last game, CourtVision works out what rolling is worth on average if you keep making the best call. It models each game with a 25% spread around his projection and a 10% chance he sits (a sat final game scores 0 in Lock-In). If his banked score beats that, lock it. "Lock if 32+" is that break-even.</li>
-          <li><b>Backtested:</b> on your league's full 2025 season, this model kept 76% of the possible lock gain on held-out weeks, versus 72% for the previous version, 63% for the old sheet rule and 45% for the league's actual managers. The Performance tab has the full report card.</li>
+          <li><b>Backtested:</b> on your league's 2025 season (held-out weeks 13–25), the slot plan with bench subs averaged 278 points per team-week, versus 261 for the previous per-player model and 232 for the league's actual managers (+17 per week over the previous model, 95% CI +12 to +22). Allowing two free-agent adds raised it to 284. The per-player model alone kept 76% of the possible lock gain, versus 63% for the old sheet rule.</li>
           <li><b>Injuries:</b> OUT drops his next game to zero. GTD or questionable raises the chance he sits his next game to 30% (a rule of thumb, not backtested).</li>
           <li><b>Freshness:</b> refreshes every 2 minutes while open. Sleeper caches scores for about a minute and projections for about ten.</li>
         </ul>
@@ -556,6 +559,7 @@ footer a{color:var(--ink-2)}
 <script src="model.js"></script>
 <script src="charts.js"></script>
 <script src="app.js"></script>
+<script src="console.js"></script>
 <script src="tabs.js"></script>
 </body>
 </html>

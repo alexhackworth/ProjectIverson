@@ -16,9 +16,12 @@ Optimal stopping: for a starter's remaining games, work backward from the last g
 
 Backtested on the league's full 2025 season (`tools/backtest.py`, `tools/backtest_scratch.py`; train weeks 1-12, test weeks 13-25): v3 kept 76% of the possible lock gain on held-out weeks, vs 72% for v2, 63% for the old sheet rule and 45% for the league's real managers. Re-run the scripts each season to recalibrate `model.js`.
 
+v4 (`tools/backtest_slots.py`) makes the call per lineup slot instead of per player: open slots draw on any eligible bench player or free agent whose game hasn't tipped. On held-out 2025 weeks it averaged 278 points per team-week vs 261 for v3 and 232 for real managers (+17.2/week over v3, 95% CI +12.3 to +22.4); allowing two free-agent adds raised it to 284. Caveats: nightly decisions only, end-of-week rosters, free-agent pool not shared across teams.
+
 ## Files
 - `index.html` – layout and styles
 - `app.js` – data loading, decision model, Lock Console, setup, settings, tour
+- `console.js` – v4 slot engine: per-slot lock/sub/roll calls drawing on bench and free agents, live hold/swap (ESPN scoreboard for tip times, clock and margin)
 - `tabs.js` – Performance, Team, Players, Trade Lab
 - `charts.js` – small SVG chart kit
 - `model.js` – model parameters and backtest results

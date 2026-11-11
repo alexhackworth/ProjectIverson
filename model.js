@@ -1,7 +1,7 @@
 // Lock-model parameters and the evidence behind them.
 // Fit on the 2025 season of Kash Patel's Legacy (weeks 1-12), tested on weeks 13-25. See tools/backtest*.py.
 window.PI_MODEL = {
-  version: "v3 · tuned Nov 2026 on 2025 season",
+  version: "v4 slots · tuned Nov 2026 on 2025 season",
   spread: 0.25,        // game-to-game spread as a share of projection (normal model)
   minSd: 4,            // floor on the spread, in fantasy points
   scratch: 0.10,       // chance he sits any future game (a DNP as his last game scores 0 in Lock-In)
@@ -28,6 +28,14 @@ window.PI_MODEL = {
       { name: "Always roll", pts: 17.24, cap: 0.000, ref: true }
     ],
     gain: { mean: 0.333, lo: 0.137, hi: 0.532 },
+    // v4 slot engine: team points per week, held-out weeks 13-25 (tools/backtest_slots.py)
+    slots: [
+      { name: "Slot plan + 2 free-agent adds", pts: 283.6 },
+      { name: "Slot plan with bench subs (v4)", pts: 278.4, mine: true },
+      { name: "Per-player model (v3)", pts: 261.2 },
+      { name: "Real managers in the league", pts: 231.8 }
+    ],
+    slotGain: { mean: 17.18, lo: 12.30, hi: 22.35 },
     // 2025 lock IQ = share of the possible lock gain each manager captured (all weeks)
     managers2025: [
       { team: "Howie's Uncut Gems", iq: 0.607, model: 0.762, left: 1.23 },
