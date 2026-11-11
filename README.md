@@ -1,19 +1,28 @@
 # ProjectIverson
 
-A live Lock-In console for Sleeper fantasy basketball. It reads league, roster, matchup, stats and projection data from the public Sleeper API straight from the browser, and turns it into LOCK / ROLL / WAIT calls for every starter.
+A live Lock-In console for Sleeper fantasy basketball. It reads league, roster, matchup, stats, projection and news data from the public Sleeper API straight from the browser.
 
 **Live:** https://alexhackworth.github.io/ProjectIverson/
 
-## What it does
-- Works out each starter's lock status from Sleeper scores (in Lock-In, a player's weekly score equals one of his games).
-- Scores every game with the league's own scoring settings.
-- Uses an optimal-stopping model to decide whether a banked score beats the expected value of rolling into his remaining games, and shows the break-even ("lock ≥") for each upcoming game.
-- Themes itself to your favorite NBA team (primary, secondary or tertiary colors) over a drawn overhead court.
-- First-run setup, a guided tour, and settings to switch fantasy team or Sleeper league.
+## Tabs
+- **Lock Console** – LOCK / ROLL / WAIT calls for every starter, a day-by-day game plan, and the lock grid.
+- **Performance** – Lock IQ (share of the possible lock gain captured), how often decisions matched CourtVision, CourtVision wins, biggest misses, league leaderboard, the model report card and on-device usage.
+- **Team** – record, weekly points vs opponent and league, schedule volume, top contributors, standings, next-week outlook.
+- **Players** – roster form table (trend, consistency, minutes, ownership) and per-player game log, news and lock history.
+- **Trade Lab (beta)** – buy-low, sell-high and waiver-riser signals from form, minutes, shooting luck, starting role, ownership trends, news and team depth charts.
+
+## Lock model (v3)
+Optimal stopping: for a starter's remaining games, work backward from the last game to find what rolling is worth on average, then lock if the banked score beats it. Each game is modeled as a normal spread of 25% around the projection with a 10% chance he sits (a sat final game scores 0 in Lock-In).
+
+Backtested on the league's full 2025 season (`tools/backtest.py`, `tools/backtest_scratch.py`; train weeks 1-12, test weeks 13-25): v3 kept 76% of the possible lock gain on held-out weeks, vs 72% for v2, 63% for the old sheet rule and 45% for the league's real managers. Re-run the scripts each season to recalibrate `model.js`.
 
 ## Files
 - `index.html` – layout and styles
-- `app.js` – data loading, decision model, UI
+- `app.js` – data loading, decision model, Lock Console, setup, settings, tour
+- `tabs.js` – Performance, Team, Players, Trade Lab
+- `charts.js` – small SVG chart kit
+- `model.js` – model parameters and backtest results
 - `teams.js` – NBA team color palettes
+- `tools/` – backtest scripts (download data with curl first if Python can't verify HTTPS)
 
 Not affiliated with the NBA or Sleeper. No logos or court artwork are reproduced; courts are drawn generically in team colors.

@@ -10,21 +10,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap">
 <style>
-/* Layout: a drawn overhead court fills the viewport; one frosted-glass shell floats over it,
-   holding a matchup row (donut + tiles + week strip), the Act-now list, and the lock grid.
-   A slim icon rail sits left of the shell on wide screens. */
+/* Layout: a drawn overhead court fills the viewport; one frosted-glass shell floats over it with a tab bar
+   (Lock Console, Performance, Team, Players, Trade Lab). A slim icon rail sits left of the shell on wide screens. */
 :root{
-  /* team-driven (set by app.js) */
   --accent:#f4b23e; --accent-text:#f4b23e; --accent-ink:#1a1206; --accent-2:#8ab4ff; --accent-3:#c4ced4;
-  /* glass + ink */
   --ink:#f3f5f8; --ink-2:rgba(243,245,248,.66); --ink-3:rgba(243,245,248,.42);
   --glass:rgba(22,27,36,.46); --glass-hi:rgba(255,255,255,.10); --glass-lo:rgba(255,255,255,.035);
   --card:rgba(255,255,255,.055); --card-hover:rgba(255,255,255,.085);
   --edge:rgba(255,255,255,.13); --edge-soft:rgba(255,255,255,.07);
-  --page:#0b0e13;
-  /* semantic */
-  --lock:#3ddc97; --roll:#8ab4ff; --warn:#ff7a6b; --caution:#f5cf4d;
-  /* type */
+  --page:#0b0e13; --tipbg:rgba(14,17,23,.96);
+  --lock:#3ddc97; --roll:#8ab4ff; --warn:#ff7a6b; --caution:#f5cf4d; --good:#3ddc97;
   --display:"Sora",system-ui,-apple-system,"Segoe UI",sans-serif;
   --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
@@ -39,17 +34,16 @@ body{background:var(--page);color:var(--ink);font:14px/1.5 var(--body);-webkit-f
 button,select,input{font:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:2px solid var(--accent-text);outline-offset:2px}
-h1,h2,h3{font-family:var(--display);margin:0;letter-spacing:-.01em;text-wrap:balance}
+h1,h2,h3,h4{font-family:var(--display);margin:0;letter-spacing:-.01em;text-wrap:balance}
 .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
 .muted{color:var(--ink-2)}
 [hidden]{display:none!important}
+a{color:var(--accent-text)}
 
 /* Background */
 #court{position:fixed;inset:0;width:100vw;height:100vh;z-index:-2;display:block}
 .wash{position:fixed;inset:0;z-index:-1;pointer-events:none;
-  background:
-    radial-gradient(120% 90% at 50% 40%,rgba(6,8,12,.05) 0%,rgba(6,8,12,.28) 70%,rgba(6,8,12,.55) 100%),
-    linear-gradient(180deg,rgba(6,8,12,.18),rgba(6,8,12,.38))}
+  background:radial-gradient(120% 90% at 50% 40%,rgba(6,8,12,.05) 0%,rgba(6,8,12,.28) 70%,rgba(6,8,12,.55) 100%),linear-gradient(180deg,rgba(6,8,12,.18),rgba(6,8,12,.38))}
 
 /* Glass */
 .glass{background:linear-gradient(180deg,var(--glass-hi),var(--glass-lo)),var(--glass);
@@ -64,7 +58,9 @@ h1,h2,h3{font-family:var(--display);margin:0;letter-spacing:-.01em;text-wrap:bal
 .rail button:hover{background:var(--card-hover);color:var(--ink)}
 .rail button.on{background:var(--card-hover);color:var(--accent-text)}
 .rail svg{width:20px;height:20px}
+.rail hr{border:0;border-top:1px solid var(--edge-soft);margin:4px 8px}
 .shell{flex:1;min-width:0;border-radius:var(--r-xl);padding:26px;display:flex;flex-direction:column;gap:18px}
+.view{display:flex;flex-direction:column;gap:18px;min-width:0}
 @media (max-width:900px){ .rail{display:none} .shell{padding:18px;border-radius:22px} }
 
 /* Header */
@@ -83,7 +79,7 @@ h1,h2,h3{font-family:var(--display);margin:0;letter-spacing:-.01em;text-wrap:bal
 .weeknav button:hover:not(:disabled){color:var(--ink);background:var(--card-hover)}
 .weeknav button:disabled{opacity:.3;cursor:default}
 .weeknav span{font-weight:600;font-size:13px;padding:0 4px;white-space:nowrap}
-.live{width:8px;height:8px;border-radius:50%;background:var(--lock);box-shadow:0 0 0 4px color-mix(in srgb,var(--lock) 22%,transparent)}
+.live{width:8px;height:8px;border-radius:50%;background:var(--lock);box-shadow:0 0 0 4px color-mix(in srgb,var(--lock) 22%,transparent);flex:none}
 .live.stale{background:var(--caution);box-shadow:0 0 0 4px color-mix(in srgb,var(--caution) 22%,transparent)}
 .live.err{background:var(--warn);box-shadow:none}
 .live.busy{animation:pulse 1s ease-in-out infinite}
@@ -91,11 +87,34 @@ h1,h2,h3{font-family:var(--display);margin:0;letter-spacing:-.01em;text-wrap:bal
 .badge{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font:700 11px/1 var(--display);letter-spacing:.02em;color:#fff;
   background:conic-gradient(var(--team-1,#555) 0 50%,var(--team-2,#333) 50% 80%,var(--team-3,#999) 80% 100%);border:2px solid rgba(255,255,255,.35);text-shadow:0 1px 2px rgba(0,0,0,.7)}
 
+/* Tab bar */
+.tabbar{display:flex;gap:4px;padding:4px;border-radius:999px;background:rgba(0,0,0,.18);border:1px solid var(--edge-soft);overflow-x:auto;scrollbar-width:none;max-width:100%}
+.tabbar::-webkit-scrollbar{display:none}
+.tab{flex:none;border:0;background:none;height:38px;padding:0 16px;border-radius:999px;color:var(--ink-2);font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.tab:hover{color:var(--ink);background:var(--card-hover)}
+.tab.on{background:var(--accent);color:var(--accent-ink)}
+.beta{font:700 9.5px/1 var(--body);letter-spacing:.08em;text-transform:uppercase;padding:3px 6px;border-radius:999px;background:var(--caution);color:#2b2200;vertical-align:middle}
+.tab.on .beta{background:rgba(0,0,0,.25);color:inherit}
+.tabhead{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:flex-end}
+.tabhead h2{font-size:24px;font-weight:700;display:flex;align-items:center;gap:10px}
+.tabhead p{margin:4px 0 0;color:var(--ink-2);max-width:70ch}
+.betabar{border-radius:var(--r-md);padding:12px 14px;background:color-mix(in srgb,var(--caution) 14%,transparent);border:1px solid color-mix(in srgb,var(--caution) 50%,transparent);color:var(--ink)}
+.loadcard{display:flex;align-items:center;gap:12px;color:var(--ink-2)}
+
+/* Win banner */
+.winbanner{display:flex;align-items:center;gap:14px;flex-wrap:wrap;border-radius:var(--r-lg);padding:14px 16px;
+  background:linear-gradient(90deg,color-mix(in srgb,var(--good) 20%,transparent),color-mix(in srgb,var(--accent) 16%,transparent));border:1px solid color-mix(in srgb,var(--good) 55%,transparent)}
+.wb-ic{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--good);color:#06281a;flex:none}
+.wb-ic svg{width:22px;height:22px}
+.wb-t{flex:1;min-width:220px;display:flex;flex-direction:column;gap:2px}
+.wb-t b{font-family:var(--display);font-size:15px}
+.wb-t span{color:var(--ink-2);font-size:12.5px}
+
 /* Row 1 */
 .r1{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,.62fr) minmax(0,1.15fr);gap:14px}
 @media (max-width:1100px){ .r1{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} #weekCard{grid-column:1 / -1} }
 @media (max-width:680px){ .r1{grid-template-columns:minmax(0,1fr)} }
-.cardhead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:14px}
+.cardhead{display:flex;align-items:baseline;justify-content:space-between;gap:6px 10px;margin-bottom:14px;flex-wrap:wrap}
 .cardhead h2{font-size:17px;font-weight:600}
 .cardhead .sub{color:var(--ink-3);font-size:12px}
 
@@ -130,20 +149,21 @@ h1,h2,h3{font-family:var(--display);margin:0;letter-spacing:-.01em;text-wrap:bal
 
 /* Week strip */
 .days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
-.day{border:1px solid transparent;background:none;border-radius:var(--r-md);padding:10px 2px;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--ink-2)}
-.day:hover{background:var(--card-hover)}
-.day .dn{font-size:11px}
-.day .dd{font:600 17px/1 var(--display);color:var(--ink)}
-.day .dots{display:flex;gap:2px;min-height:6px;flex-wrap:wrap;justify-content:center;max-width:36px}
-.day .dots i{width:5px;height:5px;border-radius:50%;background:var(--ink-3)}
-.day .dots i.a{background:var(--accent-text)}
-.day .cnt{font:500 10.5px var(--mono);color:var(--ink-3)}
-.day.today{background:color-mix(in srgb,var(--accent) 26%,rgba(255,255,255,.06));border-color:color-mix(in srgb,var(--accent-text) 55%,transparent);color:var(--ink)}
-.day.focus{border-color:var(--ink-2)}
-.day.past .dd{color:var(--ink-2)}
+.days .day{border:1.5px solid transparent;background:none;border-radius:var(--r-md);padding:10px 2px;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--ink-2)}
+.days .day:hover{background:var(--card-hover)}
+.days .day .dn{font-size:11px}
+.days .day .dd{font:600 17px/1 var(--display);color:var(--ink)}
+.days .day .dots{display:flex;gap:2px;min-height:6px;flex-wrap:wrap;justify-content:center;max-width:36px}
+.days .day .dots i{width:5px;height:5px;border-radius:50%;background:var(--ink-3)}
+.days .day .dots i.a{background:var(--accent-text)}
+.days .day .cnt{font:500 10px var(--mono);color:var(--ink-3)}
+.days .day.today{background:color-mix(in srgb,var(--accent) 22%,rgba(255,255,255,.05));color:var(--ink)}
+.days .day.focus{border-color:var(--accent-text);background:color-mix(in srgb,var(--accent) 34%,rgba(255,255,255,.06));color:var(--ink);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent-text) 25%,transparent)}
+.days .day.past .dd{color:var(--ink-2)}
 .weekfoot{display:flex;justify-content:space-between;gap:10px;color:var(--ink-3);font-size:11.5px;margin-top:10px;flex-wrap:wrap}
+.linkbtn{border:0;background:none;padding:0;color:var(--accent-text);font-weight:600;text-decoration:underline;text-underline-offset:2px}
 
-/* Act now */
+/* Act now + day plan */
 .alist{display:flex;flex-direction:column}
 .arow{display:grid;grid-template-columns:auto minmax(0,1.4fr) repeat(3,minmax(64px,auto)) 92px;gap:14px;align-items:center;padding:12px 4px;border-top:1px solid var(--edge-soft)}
 .arow:first-child{border-top:0}
@@ -157,11 +177,20 @@ h1,h2,h3{font-family:var(--display);margin:0;letter-spacing:-.01em;text-wrap:bal
 .nb small{color:var(--ink-3);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase}
 .arow .pill{justify-self:end}
 .arow .nbs{display:contents}
+.arow.dp{grid-template-columns:auto minmax(0,.9fr) minmax(0,1.6fr) 92px}
+.dpic{width:10px;height:10px;border-radius:50%;background:var(--ink-3)}
+.tone-plan .dpic{background:var(--accent-text)} .tone-counts .dpic{background:var(--accent-text);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent-text) 30%,transparent)}
+.tone-locked .dpic{background:var(--lock)} .tone-live .dpic,.tone-warn .dpic{background:var(--warn)} .tone-final .dpic{background:var(--caution)}
+.dpb{display:flex;flex-direction:column;gap:2px;min-width:0}
+.dpb b{font-weight:600}
+.dpb span{color:var(--ink-2);font-size:12.5px}
 @media (max-width:760px){
   .arow{grid-template-columns:auto minmax(0,1fr) auto;gap:10px 12px}
   .arow .nbs{grid-column:2 / -1;display:flex;gap:18px}
   .arow .nb{text-align:left}
   .arow .pill{grid-column:3;grid-row:1}
+  .arow.dp{grid-template-columns:auto minmax(0,1fr) auto}
+  .arow.dp .dpb{grid-column:2 / -1}
 }
 .empty{color:var(--ink-2);padding:8px 2px}
 
@@ -179,43 +208,174 @@ h1,h2,h3{font-family:var(--display);margin:0;letter-spacing:-.01em;text-wrap:bal
 .f-warn{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
 .f-caution{background:color-mix(in srgb,var(--caution) 18%,transparent);color:var(--caution)}
 .f-info{background:rgba(255,255,255,.08);color:var(--ink-2)}
+.f-good{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
 
 /* Grid */
 .legend{display:flex;flex-wrap:wrap;gap:12px;color:var(--ink-2);font-size:11.5px}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .sw{width:12px;height:12px;border-radius:4px;border:1.5px solid}
+.gridhelp{margin:-4px 0 14px;color:var(--ink-2);font-size:12.5px;display:flex;flex-wrap:wrap;gap:4px 18px}
+.gridhelp b{color:var(--ink)}
 .tablewrap{overflow-x:auto;margin:0 -18px -18px;border-top:1px solid var(--edge-soft)}
-table{border-collapse:collapse;width:100%;min-width:1000px}
-th,td{padding:9px 8px;text-align:left;vertical-align:middle;border-bottom:1px solid var(--edge-soft)}
-th:first-child,td:first-child{padding-left:18px}
-th:last-child,td:last-child{padding-right:18px}
-thead th{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
-thead th.today{color:var(--accent-text)}
-tbody tr:last-child td{border-bottom:0}
-tbody tr:hover td{background:rgba(255,255,255,.025)}
+#grid{border-collapse:collapse;width:100%;min-width:1040px}
+#grid th,#grid td{padding:9px 8px;text-align:left;vertical-align:middle;border-bottom:1px solid var(--edge-soft)}
+#grid th:first-child,#grid td:first-child{padding-left:18px}
+#grid th:last-child,#grid td:last-child{padding-right:18px}
+#grid thead th{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+#grid thead th.dayh{text-align:center}
+#grid thead th.today{color:var(--accent-text)}
+#grid thead th.focus{color:var(--accent-ink);background:var(--accent);border-radius:8px 8px 0 0}
+#grid tbody tr:last-child td{border-bottom:0}
+#grid tbody tr:hover td{background:rgba(255,255,255,.025)}
 td.slot{font:500 11px var(--mono);color:var(--ink-3);width:46px}
-td.player{min-width:180px}
+td.player{min-width:170px}
 td.player .n{font-weight:600}
 td.player .s{font-size:11.5px;color:var(--ink-3)}
 td.r{text-align:right}
-td.day{width:82px;text-align:center;padding:5px 4px}
-td.day.today{background:color-mix(in srgb,var(--accent) 10%,transparent)}
-td.day.focus{background:rgba(255,255,255,.06)}
+td.day{width:86px;text-align:center;padding:5px 4px}
+td.day.today{background:color-mix(in srgb,var(--accent) 8%,transparent)}
+td.day.focus{background:color-mix(in srgb,var(--accent) 18%,transparent);box-shadow:inset 2px 0 0 var(--accent-text),inset -2px 0 0 var(--accent-text)}
+td.day.dim{opacity:.4}
+.callsub{font-size:11px;color:var(--ink-3);margin-top:4px;white-space:nowrap}
 .g{display:flex;flex-direction:column;align-items:center;border-radius:10px;padding:5px 2px;border:1.5px solid transparent;line-height:1.25}
 .g .o{font-size:10.5px;color:var(--ink-3)}
 .g .v{font:500 13px var(--mono);font-variant-numeric:tabular-nums}
 .g.proj .v{color:var(--ink-2);font-style:italic}
 .g.done .v{color:var(--ink);font-weight:600}
+.g.faded{opacity:.55}
 .g.counts{border-color:var(--accent-text);background:color-mix(in srgb,var(--accent) 16%,transparent)}
 .g.lockedg{border-color:var(--lock);background:color-mix(in srgb,var(--lock) 14%,transparent)}
 .g.live{border-color:var(--warn)}
-.g .tag{font:700 9px/1.4 var(--body);letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+.g .tag{font:700 9px/1.4 var(--body);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);white-space:nowrap}
+.g.proj .tag{color:var(--ink-2)}
 .g.counts .tag{color:var(--accent-text)} .g.lockedg .tag{color:var(--lock)} .g.live .tag{color:var(--warn)}
 .nog{color:var(--ink-3)}
 tr.sep td{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);font-weight:600;background:rgba(255,255,255,.035);padding-block:7px}
 tr.bench td{opacity:.66}
 .mini{margin-top:5px;border:1px solid var(--edge);background:rgba(255,255,255,.04);border-radius:999px;padding:2px 9px;font-size:11px;color:var(--ink-2)}
 .mini:hover{color:var(--ink);border-color:var(--ink-3)}
+
+/* Shared tab components */
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.kpis.inner{margin-bottom:16px}
+@media (max-width:900px){ .kpis{grid-template-columns:repeat(2,minmax(0,1fr))} }
+.kpi{display:flex;flex-direction:column;gap:4px}
+.kpis.inner .kpi{background:rgba(255,255,255,.04);border-radius:var(--r-md);padding:12px}
+.kpi small{color:var(--ink-2);font-size:12px}
+.kpi b{font:600 26px/1.1 var(--mono);font-variant-numeric:tabular-nums}
+.kpi span{color:var(--ink-3);font-size:12px}
+.kpi.win{border-color:color-mix(in srgb,var(--good) 45%,transparent);background:color-mix(in srgb,var(--good) 9%,var(--card))}
+.kpi.win b{color:var(--good)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.grid2.inner{gap:22px}
+@media (max-width:900px){ .grid2{grid-template-columns:minmax(0,1fr)} }
+.mini-h{font-size:13px;font-weight:600;color:var(--ink-2);margin-bottom:10px}
+.note{font-size:12px;color:var(--ink-3)}
+.wins{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.wincard{border-radius:var(--r-md);padding:14px;background:color-mix(in srgb,var(--good) 10%,rgba(255,255,255,.03));border:1px solid color-mix(in srgb,var(--good) 40%,transparent);display:flex;flex-direction:column;gap:6px}
+.wincard p{margin:0;color:var(--ink-2);font-size:12.5px}
+.wc-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wc-ic{width:26px;height:26px;border-radius:50%;background:var(--good);color:#06281a;display:grid;place-items:center}
+.wc-ic svg{width:15px;height:15px}
+.wc-top b{font:600 16px var(--mono);color:var(--good)}
+.wc-tag{font-size:11px;color:var(--ink-2);margin-left:auto}
+.wc-name{font-weight:600}
+.misslist{display:flex;flex-direction:column}
+.missrow{display:grid;grid-template-columns:64px minmax(0,1fr);gap:12px;padding:10px 0;border-top:1px solid var(--edge-soft)}
+.missrow:first-child{border-top:0}
+.missrow>b{font:600 15px var(--mono);color:var(--caution)}
+.missrow .n{font-weight:600}
+.missrow span{color:var(--ink-2);font-size:12.5px}
+.checks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.checks li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:10px 12px;border-radius:var(--r-md);background:rgba(255,255,255,.035)}
+.checks b{font-weight:600}
+.checks span{grid-column:1;color:var(--ink-2);font-size:12.5px}
+.checks em{grid-column:2;grid-row:1;font-style:normal;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:2px 8px;border-radius:999px;align-self:start}
+.checks li.ok em{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
+.checks li.fix em{background:color-mix(in srgb,var(--caution) 18%,transparent);color:var(--caution)}
+.ustats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.ustats div{background:rgba(255,255,255,.04);border-radius:var(--r-md);padding:12px;display:flex;flex-direction:column}
+.ustats b{font:600 22px var(--mono)}
+.ustats small{color:var(--ink-2);font-size:12px}
+.tvwrap{overflow-x:auto}
+.stand,.ptable,.mini-t,.tview table{border-collapse:collapse;width:100%}
+.stand th,.stand td,.ptable th,.ptable td,.mini-t th,.mini-t td,.tview th,.tview td{padding:8px 8px;border-bottom:1px solid var(--edge-soft);text-align:left;vertical-align:middle}
+.stand th,.ptable th,.mini-t th,.tview th{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.stand .r,.ptable .r,.mini-t .r{text-align:right}
+.stand tr.mine td,.mini-t tr.mine td{background:color-mix(in srgb,var(--accent) 14%,transparent);font-weight:600}
+.ptable{min-width:760px}
+.ptable tbody tr{cursor:pointer}
+.ptable tbody tr:hover td{background:rgba(255,255,255,.03)}
+.ptable tr.sel td{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.ptable .n{font-weight:600}
+.ptable .s{font-size:11.5px;color:var(--ink-3)}
+.ptable .up{color:var(--good)} .ptable .down{color:var(--warn)}
+.chip-s{font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--ink-2);vertical-align:middle}
+.sel{height:42px;width:100%;border-radius:12px;border:1px solid var(--edge);background:rgba(20,24,32,.9);padding:0 10px}
+.sel.narrow{width:auto;min-width:220px;max-width:100%}
+.volgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.volcell{border-radius:var(--r-md);padding:10px 12px;background:rgba(255,255,255,.04);display:flex;flex-direction:column}
+.volcell b{font:600 22px var(--mono)}
+.volcell span{font-weight:600;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.volcell small{color:var(--ink-3);font-size:11px}
+.volcell.high b{color:var(--good)} .volcell.low b{color:var(--caution)}
+.news{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.news li{display:flex;flex-direction:column;gap:3px;padding:10px 12px;border-radius:var(--r-md);background:rgba(255,255,255,.035)}
+.news b{font-weight:600}
+.news span{color:var(--ink-2);font-size:12.5px}
+.news small{color:var(--ink-3);font-size:11px;text-transform:capitalize}
+.tcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+.tcard{border-radius:var(--r-md);padding:14px;background:rgba(255,255,255,.04);border:1px solid var(--edge-soft);display:flex;flex-direction:column;gap:8px;min-width:0}
+.tcard p{margin:0;color:var(--ink-2);font-size:12.5px}
+.tc-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.tc-top .n{font-weight:600}
+.tc-top .s{font-size:11.5px;color:var(--ink-3)}
+.sig{font:600 11px/1 var(--display);text-transform:uppercase;letter-spacing:.04em;padding:6px 9px;border-radius:999px;white-space:nowrap}
+.sig-buy{background:color-mix(in srgb,var(--good) 20%,transparent);color:var(--good)}
+.sig-sell{background:color-mix(in srgb,var(--warn) 20%,transparent);color:var(--warn)}
+.sig-add{background:color-mix(in srgb,var(--roll) 20%,transparent);color:var(--roll)}
+.tc-mid{display:flex;align-items:center;gap:12px}
+.tc-n{display:flex;gap:14px}
+.tc-n span{display:flex;flex-direction:column}
+.tc-n b{font:600 14px var(--mono)}
+.tc-n small{color:var(--ink-3);font-size:10.5px}
+.tc-more{align-self:flex-start;font-size:12.5px}
+.tc-x{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--edge-soft);padding-top:10px}
+.tc-x h4{font-size:12.5px;color:var(--ink-2);font-weight:600}
+.tc-x h4 small{color:var(--ink-3);font-weight:500}
+.spark{flex:none}
+.spark .sref{stroke:rgba(243,245,248,.3);stroke-dasharray:3 3;stroke-width:1}
+
+/* Charts */
+.clegend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11.5px;color:var(--ink-2);margin-bottom:8px}
+.clegend span{display:inline-flex;align-items:center;gap:6px}
+.clegend i{width:14px;height:0;border-top:2px solid;display:inline-block;height:2px;border-radius:1px}
+.cbox{width:100%;min-width:0}
+.cbox svg{display:block;overflow:visible}
+.cbox .grid{stroke:rgba(255,255,255,.07);stroke-width:1}
+.cbox .zero{stroke:rgba(255,255,255,.22);stroke-width:1}
+.cbox .ytk,.cbox .xtk{fill:var(--ink-3);font:500 10.5px var(--mono)}
+.cbox .dlab{fill:var(--ink-2);font:600 11px var(--body)}
+.cbox .cross{stroke:rgba(255,255,255,.3);stroke-width:1}
+.cbox .mk{stroke:#1b212b;stroke-width:2}
+.cbox .bar.hi{stroke:var(--ink);stroke-width:1.5}
+.hbars{display:flex;flex-direction:column;gap:7px}
+.hb{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1.6fr) 54px;gap:10px;align-items:center;font-size:12.5px;border-radius:6px;padding:2px 4px}
+.hb.mine{background:color-mix(in srgb,var(--accent) 12%,transparent);font-weight:600}
+.hb .hl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hb .hl small{color:var(--ink-3);margin-left:6px;font-weight:500}
+.hb .ht{height:10px;border-radius:5px;background:rgba(255,255,255,.05);overflow:hidden}
+.hb .ht i{display:block;height:100%;border-radius:0 4px 4px 0}
+.hb .hv{text-align:right}
+.tview{margin-top:8px}
+.tview summary{cursor:pointer;color:var(--ink-3);font-size:11.5px}
+.tview table{margin-top:6px;font-size:12px}
+.ptip{position:fixed;z-index:60;pointer-events:none;background:var(--tipbg);border:1px solid var(--edge);border-radius:10px;padding:8px 10px;font-size:12px;min-width:150px;max-width:280px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.ptip b{display:block;margin-bottom:4px;font-weight:600}
+.ptip div{display:flex;align-items:center;gap:6px;color:var(--ink-2)}
+.ptip div i{width:8px;height:8px;border-radius:50%;flex:none}
+.ptip div span{margin-left:auto;padding-left:12px;color:var(--ink);font-family:var(--mono)}
+.ptip small{display:block;margin-top:4px;color:var(--ink-3)}
 
 /* Method + footer */
 details.method summary{cursor:pointer;font:600 15px var(--display)}
@@ -226,7 +386,7 @@ footer{color:var(--ink-3);font-size:12px;display:flex;flex-wrap:wrap;gap:6px 16p
 footer a{color:var(--ink-2)}
 .errbox{border-radius:var(--r-md);padding:12px 14px;background:color-mix(in srgb,var(--warn) 14%,transparent);border:1px solid color-mix(in srgb,var(--warn) 55%,transparent)}
 
-/* Overlays (onboarding, drawer, tour) */
+/* Overlays */
 .scrim{position:fixed;inset:0;z-index:40;background:rgba(4,6,10,.55);display:grid;place-items:center;
   padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
 .modal{width:min(760px,100%);max-height:100%;overflow:auto;border-radius:24px;padding:26px;display:flex;flex-direction:column;gap:18px}
@@ -262,15 +422,12 @@ footer a{color:var(--ink-2)}
 .finder{display:flex;gap:8px;flex-wrap:wrap}
 .finder .search{flex:1;min-width:180px}
 .list{display:flex;flex-direction:column;gap:6px}
-.note{font-size:12px;color:var(--ink-3)}
 .errline{color:var(--warn);font-size:12.5px}
-
 .drawer{position:fixed;z-index:45;top:0;right:0;bottom:0;width:min(420px,100%);border-radius:24px 0 0 24px;
   padding:calc(env(safe-area-inset-top,0px) + 22px) max(22px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 22px) 22px;
   overflow:auto;display:flex;flex-direction:column;gap:22px}
 .drawer h2{font-size:20px}
 .drawer h3{font-size:13px;font-weight:600;color:var(--ink-2);letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px}
-.drawer select{height:42px;width:100%;border-radius:12px;border:1px solid var(--edge);background:rgba(20,24,32,.9);padding:0 10px}
 .schemes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .scheme{padding:10px;border-radius:14px;border:1px solid var(--edge-soft);background:rgba(255,255,255,.04);display:flex;flex-direction:column;gap:8px;align-items:flex-start}
 .scheme.sel{border-color:var(--accent-text);background:color-mix(in srgb,var(--accent) 14%,transparent)}
@@ -279,7 +436,6 @@ footer a{color:var(--ink-2)}
 .scheme .bar i:first-child{flex:2.2}
 .scheme span{font-size:12px;font-weight:600}
 .drawhead{display:flex;justify-content:space-between;align-items:center}
-
 .tour{position:fixed;inset:0;z-index:50;pointer-events:none}
 .spot{position:fixed;border-radius:20px;box-shadow:0 0 0 9999px rgba(4,6,10,.66);border:2px solid var(--accent-text);transition:all .28s ease;pointer-events:none}
 .tip{position:fixed;width:min(360px,calc(100vw - 32px));border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:10px;pointer-events:auto;transition:top .28s ease,left .28s ease}
@@ -296,10 +452,13 @@ footer a{color:var(--ink-2)}
 
 <div class="frame">
   <nav class="rail glass" aria-label="Sections">
-    <button data-jump="overview" class="on" aria-label="Overview" title="Overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg></button>
-    <button data-jump="actNow" aria-label="Act now" title="Act now"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></button>
-    <button data-jump="gridCard" aria-label="Lock grid" title="Lock grid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16M15 4v16"/></svg></button>
-    <button data-act="settings" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg></button>
+    <button data-tab="console" class="on" aria-label="Lock Console" title="Lock Console"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg></button>
+    <button data-tab="performance" aria-label="Performance" title="Performance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16"/><path d="M7 15l4-4 3 3 5-6"/></svg></button>
+    <button data-tab="team" aria-label="Team" title="Team"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15 14.5c2.8 0 5 2.2 5 5"/></svg></button>
+    <button data-tab="players" aria-label="Players" title="Players"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></button>
+    <button data-tab="trades" aria-label="Trade Lab (beta)" title="Trade Lab (beta)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h13l-3-3M17 17H4l3 3"/></svg></button>
+    <hr>
+    <button data-act="settings" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></button>
     <button data-act="tour" aria-label="How to use" title="How to use"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 114 2c-.9.6-1.5 1.1-1.5 2.2"/><path d="M12 17h.01"/></svg></button>
   </nav>
 
@@ -311,72 +470,92 @@ footer a{color:var(--ink-2)}
       </div>
       <div class="ctrls">
         <span class="chip" id="statusChip"><span class="live busy" id="liveDot"></span><span id="statusTxt">Connecting to Sleeper…</span></span>
-        <div class="weeknav" role="group" aria-label="Week">
+        <span id="weeknavWrap"><span class="weeknav" role="group" aria-label="Week">
           <button id="prevWk" aria-label="Previous week">‹</button>
           <span id="wkLabel">Week –</span>
           <button id="nextWk" aria-label="Next week">›</button>
-        </div>
+        </span></span>
         <button class="iconbtn" id="refreshBtn" aria-label="Refresh now" title="Refresh now"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 10-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
         <button class="iconbtn" id="helpBtn" aria-label="How to use" title="How to use"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 114 2c-.9.6-1.5 1.1-1.5 2.2"/><path d="M12 17h.01"/></svg></button>
-        <button class="iconbtn" id="settingsBtn" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></button>
+        <button class="iconbtn" id="settingsBtn" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></button>
         <span class="badge" id="teamBadge" title="Your favorite team">–</span>
       </div>
     </header>
 
+    <nav class="tabbar" id="tabbar" role="tablist" aria-label="Views">
+      <button class="tab on" role="tab" data-tab="console" aria-selected="true">Lock Console</button>
+      <button class="tab" role="tab" data-tab="performance" aria-selected="false">Performance</button>
+      <button class="tab" role="tab" data-tab="team" aria-selected="false">Team</button>
+      <button class="tab" role="tab" data-tab="players" aria-selected="false">Players</button>
+      <button class="tab" role="tab" data-tab="trades" aria-selected="false">Trade Lab <span class="beta">Beta</span></button>
+    </nav>
+
     <div id="err" class="errbox" hidden></div>
 
-    <section class="r1">
-      <article class="card" id="matchup" aria-label="Matchup">
-        <div class="cardhead"><h2>Matchup</h2><span class="sub">projected with best lock play</span></div>
-        <div class="mu"><div class="muted">Loading…</div></div>
-      </article>
-      <div class="tiles" id="tiles">
-        <div class="card tile"><div class="ic"></div><div><b>–</b><small>Locked</small></div></div>
-        <div class="card tile"><div class="ic"></div><div><b>–</b><small>Decisions pending</small></div></div>
-        <div class="card tile"><div class="ic"></div><div><b>–</b><small>Starter games left</small></div></div>
-      </div>
-      <article class="card" id="weekCard" aria-label="Week">
-        <div class="cardhead"><h2 id="weekTitle">This week</h2><span class="sub" id="weekSub"></span></div>
-        <div class="days" id="days"></div>
-        <div class="weekfoot"><span>Dots = your starters playing</span><span id="focusNote">Tap a day to highlight it in the grid</span></div>
-      </article>
-    </section>
-
-    <section class="card" id="actNow" aria-label="Act now">
-      <div class="cardhead"><h2>Act now</h2><span class="sub" id="actSub">Starters with a decision before their next tip-off</span></div>
-      <div class="alist" id="alist"><div class="empty">Loading…</div></div>
-    </section>
-
-    <section class="card" id="gridCard" aria-label="Lock grid">
-      <div class="cardhead">
-        <h2>Lock grid</h2>
-        <div class="legend">
-          <span><i class="sw" style="border-color:var(--accent-text);background:color-mix(in srgb,var(--accent) 16%,transparent)"></i>Counting now</span>
-          <span><i class="sw" style="border-color:var(--lock);background:color-mix(in srgb,var(--lock) 14%,transparent)"></i>Locked</span>
-          <span><i class="sw" style="border-color:var(--warn)"></i>Live</span>
-          <span><i>24.1</i>&nbsp;projected</span>
+    <div class="view" id="view-console" role="tabpanel">
+      <div class="winbanner" id="winBanner" hidden></div>
+      <section class="r1">
+        <article class="card" id="matchup" aria-label="Matchup">
+          <div class="cardhead"><h2>Matchup</h2><span class="sub">projected with best lock play</span></div>
+          <div class="mu"><div class="muted">Loading…</div></div>
+        </article>
+        <div class="tiles" id="tiles">
+          <div class="card tile"><div class="ic"></div><div><b>–</b><small>Starters locked</small></div></div>
+          <div class="card tile"><div class="ic"></div><div><b>–</b><small>Decisions pending</small></div></div>
+          <div class="card tile"><div class="ic"></div><div><b>–</b><small>Live games left</small></div></div>
         </div>
-      </div>
-      <div class="tablewrap"><table id="grid"><thead></thead><tbody><tr><td class="muted">Loading roster…</td></tr></tbody></table></div>
-    </section>
+        <article class="card" id="weekCard" aria-label="Week">
+          <div class="cardhead"><h2 id="weekTitle">This week</h2><span class="sub" id="weekSub"></span></div>
+          <div class="days" id="days"></div>
+          <div class="weekfoot"><span>Dots = your starters playing</span><span id="focusNote">Tap a day to see that day's game plan</span></div>
+        </article>
+      </section>
 
-    <details class="card method">
-      <summary>How the calls are made</summary>
-      <ul>
-        <li><b>Lock status comes from Sleeper.</b> In Lock-In, a player's weekly score equals one of his games. If it matches an earlier game and not his latest, he's locked. If it matches his latest game, he's either rolling or was locked on that game, and his next game settles it. Use "I locked this" to mark it on your device until then.</li>
-        <li><b>Points use your league's scoring</b> applied to Sleeper's game stats and RotoWire projections, so totals match the Sleeper app.</li>
-        <li><b>LOCK vs ROLL is an optimal-stopping call.</b> Working backward from his last game, the console finds what rolling is worth on average if you keep making the best call (each game modeled with a spread of about 30% of his projection). If his banked score beats that, lock it. The "lock ≥" number on upcoming games is that break-even.</li>
-        <li><b>Flags:</b> FINAL GAME means the next score is the one that counts if you roll. OUT drops his next game's projection to zero. LOW VOLUME means two or fewer games this week.</li>
-        <li><b>Freshness:</b> refreshes every 2 minutes while open. Sleeper caches scores for about a minute and projections for about ten.</li>
-      </ul>
-    </details>
+      <section class="card" id="actNow" aria-label="Act now">
+        <div class="cardhead"><h2 id="actTitle">Act now</h2><span class="sub" id="actSub">Starters with a decision before their next tip-off</span></div>
+        <div class="alist" id="alist"><div class="empty">Loading…</div></div>
+      </section>
 
-    <footer><span>Data from the public <a href="https://docs.sleeper.com/" target="_blank" rel="noopener">Sleeper API</a>. Read-only: locks still happen in the Sleeper app.</span><span>Courts are drawn, not photographed. Not affiliated with the NBA or Sleeper.</span></footer>
+      <section class="card" id="gridCard" aria-label="Lock grid">
+        <div class="cardhead">
+          <h2>Lock grid</h2>
+          <div class="legend">
+            <span><i class="sw" style="border-color:var(--accent-text);background:color-mix(in srgb,var(--accent) 16%,transparent)"></i>Counting now</span>
+            <span><i class="sw" style="border-color:var(--lock);background:color-mix(in srgb,var(--lock) 14%,transparent)"></i>Locked</span>
+            <span><i class="sw" style="border-color:var(--warn)"></i>Live</span>
+          </div>
+        </div>
+        <div class="gridhelp"><span><b>Bold</b> = points he scored</span><span><i>Italic</i> = projected points</span><span><b>Lock if 32+</b> = if he scores 32 or more in that game, lock him right after it</span><span><b>Banked</b> = the score counting for him right now</span></div>
+        <div class="tablewrap"><table id="grid"><thead></thead><tbody><tr><td class="muted">Loading roster…</td></tr></tbody></table></div>
+      </section>
+
+      <details class="card method">
+        <summary>How the calls are made</summary>
+        <ul>
+          <li><b>Lock status comes from Sleeper.</b> In Lock-In, a player's weekly score equals one of his games. If it matches an earlier game and not his latest, he's locked. If it matches his latest game, he's either rolling or was locked on that game, and his next game settles it. Use "I locked this" to mark it on your device until then.</li>
+          <li><b>Points use your league's scoring</b> applied to Sleeper's game stats and RotoWire projections, so totals match the Sleeper app.</li>
+          <li><b>LOCK vs ROLL is an optimal-stopping call.</b> Working backward from his last game, CourtVision works out what rolling is worth on average if you keep making the best call. It models each game with a 25% spread around his projection and a 10% chance he sits (a sat final game scores 0 in Lock-In). If his banked score beats that, lock it. "Lock if 32+" is that break-even.</li>
+          <li><b>Backtested:</b> on your league's full 2025 season, this model kept 76% of the possible lock gain on held-out weeks, versus 72% for the previous version, 63% for the old sheet rule and 45% for the league's actual managers. The Performance tab has the full report card.</li>
+          <li><b>Injuries:</b> OUT drops his next game to zero. GTD or questionable raises the chance he sits his next game to 30% (a rule of thumb, not backtested).</li>
+          <li><b>Freshness:</b> refreshes every 2 minutes while open. Sleeper caches scores for about a minute and projections for about ten.</li>
+        </ul>
+      </details>
+    </div>
+
+    <div class="view" id="view-performance" role="tabpanel" hidden></div>
+    <div class="view" id="view-team" role="tabpanel" hidden></div>
+    <div class="view" id="view-players" role="tabpanel" hidden></div>
+    <div class="view" id="view-trades" role="tabpanel" hidden></div>
+
+    <footer><span>Data from the public <a href="https://docs.sleeper.com/" target="_blank" rel="noopener">Sleeper API</a>; news via Sleeper from its publishers. Read-only: locks still happen in the Sleeper app.</span><span>Courts are drawn, not photographed. Not affiliated with the NBA or Sleeper.</span></footer>
   </main>
 </div>
 
 <div id="overlayRoot"></div>
 <script src="teams.js"></script>
+<script src="model.js"></script>
+<script src="charts.js"></script>
 <script src="app.js"></script>
+<script src="tabs.js"></script>
 </body>
 </html>

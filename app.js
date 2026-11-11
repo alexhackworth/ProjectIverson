@@ -1,4 +1,4 @@
-/* ProjectIverson — live Lock-In console for Sleeper fantasy basketball. */
+/* ProjectIverson — live Lock-In console for Sleeper fantasy basketball (core + Lock Console). */
 (() => {
 "use strict";
 
@@ -7,9 +7,12 @@ const DEFAULTS = { leagueId: "1411462896273084416", rosterId: 3 };          // K
 const DEFAULT_LABEL = { league: "Kash Patel's Legacy", team: "Missouri Mighty Marfans" };
 const NEUTRAL = ["#F4B23E", "#2B3A55", "#C4CED4"];
 const API = "https://api.sleeper.app/v1", API2 = "https://api.sleeper.com";
-const REFRESH_MS = 120000, CV = 0.30, MIN_SD = 4;
+const REFRESH_MS = 120000;
+const M = window.PI_MODEL;
 const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const DAYS_LONG = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 const TEAMS = window.PI_TEAMS || [];
+const TABS = ["console","performance","team","players","trades"];
 const teamBy = abbr => TEAMS.find(t => t.abbr === abbr) || null;
 
 const $ = id => document.getElementById(id);
@@ -23,12 +26,24 @@ const f2 = x => (x==null || isNaN(x)) ? "–" : String(Math.round(x*100)/100);
 
 let cfg = Object.assign({ leagueId: DEFAULTS.leagueId, rosterId: DEFAULTS.rosterId, team: null, scheme: 0, onboarded: false, toured: false },
   (() => { try { return JSON.parse(store.get("pi:cfg") || "{}"); } catch(e){ return {}; } })());
-// shareable links: ?league=<id>&team=<rosterId>
 (() => {
   const q = new URLSearchParams(location.search);
   if (q.get("league") && /^\d+$/.test(q.get("league"))) { cfg.leagueId = q.get("league"); cfg.rosterId = Number(q.get("team")) || 1; }
 })();
 const saveCfg = () => store.set("pi:cfg", JSON.stringify(cfg));
+
+// ---------------------------------------------------------------- usage (this device only)
+function track(kind, name){
+  try{
+    const u = JSON.parse(store.get("pi:usage") || "{}"); const d = new Date().toLocaleDateString("en-CA");
+    u.first ||= d; u.days ||= {}; const day = (u.days[d] ||= {v:0, tabs:{}, acts:{}});
+    if(kind==="visit") day.v++;
+    if(kind==="tab") day.tabs[name] = (day.tabs[name]||0) + 1;
+    if(kind==="act") day.acts[name] = (day.acts[name]||0) + 1;
+    const keys = Object.keys(u.days).sort(); while(keys.length > 90) delete u.days[keys.shift()];
+    store.set("pi:usage", JSON.stringify(u));
+  }catch(e){}
+}
 
 // ---------------------------------------------------------------- color
 const hex2rgb = h => { const n = parseInt(h.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255]; };
@@ -38,7 +53,6 @@ const lum = h => { const c = hex2rgb(h).map(v => { v/=255; return v<=0.03928 ? v
 const contrast = (a,b) => { const l1=lum(a), l2=lum(b); return (Math.max(l1,l2)+0.05)/(Math.min(l1,l2)+0.05); };
 function readable(h, bg="#1b212b"){ for(let t=0;t<=1.0001;t+=0.06){ const c = mix(h,"#ffffff",t); if(contrast(c,bg)>=4.5) return c; } return "#ffffff"; }
 function visibleFill(h){ return lum(h) < 0.035 ? mix(h,"#ffffff",0.32) : h; }
-
 function themeColors(){
   const t = teamBy(cfg.team); const base = t ? t.colors : NEUTRAL; const s = cfg.scheme % 3;
   return [base[s], base[(s+1)%3], base[(s+2)%3]];
@@ -55,6 +69,7 @@ function applyTheme(){
   b.style.setProperty("--team-1", c1); b.style.setProperty("--team-2", c2); b.style.setProperty("--team-3", c3);
   b.textContent = t ? t.abbr : "PI"; b.title = t ? `${t.city} ${t.name}` : "No team picked";
   drawCourt();
+  if(S.data && PI.tabs && current !== "console") PI.tabs.render(current);
 }
 
 // ---------------------------------------------------------------- court (drawn, generic)
@@ -69,75 +84,84 @@ function drawCourt(){
   let Wd = W, Hd = H;
   if(portrait){ ctx.translate(W,0); ctx.rotate(Math.PI/2); Wd = H; Hd = W; }
   const [paint, apron] = themeColors();
-  const s = Math.max(Wd/104, Hd/60);              // px per foot, cover with apron
+  const s = Math.max(Wd/104, Hd/60);
   const x0 = (Wd - 94*s)/2, y0 = (Hd - 50*s)/2;
   const X = ft => x0 + ft*s, Y = ft => y0 + ft*s;
-  // apron
   ctx.fillStyle = apron; ctx.fillRect(0,0,Wd,Hd);
-  // maple planks running the length of the floor
   const r = rng(1984);
   const plank = Math.max(3, s*0.55);
   for(let y=y0; y<y0+50*s; y+=plank){
     let x = x0;
     while(x < x0+94*s){
       const len = (7 + r()*10) * s;
-      const L = 60 + (r()-0.5)*9, S = 46 + (r()-0.5)*8, Hh = 32 + (r()-0.5)*5;
-      ctx.fillStyle = `hsl(${Hh} ${S}% ${L}%)`;
+      const L = 60 + (r()-0.5)*9, Sx = 46 + (r()-0.5)*8, Hh = 32 + (r()-0.5)*5;
+      ctx.fillStyle = `hsl(${Hh} ${Sx}% ${L}%)`;
       ctx.fillRect(x, y, Math.min(len, x0+94*s-x), Math.min(plank, y0+50*s-y));
       x += len;
     }
     ctx.fillStyle = "rgba(60,35,10,.10)"; ctx.fillRect(x0, y, 94*s, Math.max(0.6, s*0.03));
   }
-  // painted areas
   const lineDark = lum(paint) > 0.55;
   ctx.globalAlpha = 0.94; ctx.fillStyle = paint;
-  ctx.fillRect(X(0), Y(17), 19*s, 16*s);
-  ctx.fillRect(X(75), Y(17), 19*s, 16*s);
+  ctx.fillRect(X(0), Y(17), 19*s, 16*s); ctx.fillRect(X(75), Y(17), 19*s, 16*s);
   ctx.beginPath(); ctx.arc(X(47), Y(25), 6*s, 0, Math.PI*2); ctx.fill();
   ctx.globalAlpha = 1;
-  // lines
   ctx.strokeStyle = lineDark ? "rgba(20,20,20,.9)" : "rgba(255,255,255,.95)";
   ctx.lineWidth = Math.max(1.5, s*0.17);
   const line = (...p) => { ctx.beginPath(); ctx.moveTo(X(p[0]),Y(p[1])); for(let i=2;i<p.length;i+=2) ctx.lineTo(X(p[i]),Y(p[i+1])); ctx.stroke(); };
   const arc = (cx,cy,rad,a0,a1) => { ctx.beginPath(); ctx.arc(X(cx),Y(cy),rad*s,a0,a1); ctx.stroke(); };
   ctx.strokeRect(X(0), Y(0), 94*s, 50*s);
-  line(47,0,47,50);
-  arc(47,25,6,0,Math.PI*2); arc(47,25,2,0,Math.PI*2);
+  line(47,0,47,50); arc(47,25,6,0,Math.PI*2); arc(47,25,2,0,Math.PI*2);
   const a3 = Math.asin(22/23.75);
   for(const side of [0,1]){
     const bx = side ? 94-5.25 : 5.25, dir = side ? -1 : 1, base = side ? 94 : 0, ft = side ? 94-19 : 19;
     ctx.strokeRect(side ? X(75) : X(0), Y(17), 19*s, 16*s);
     arc(ft,25,6, side ? Math.PI/2 : -Math.PI/2, side ? Math.PI*1.5 : Math.PI/2);
     arc(bx,25,4, side ? Math.PI/2 : -Math.PI/2, side ? Math.PI*1.5 : Math.PI/2);
-    line(base+dir*4, 22, base+dir*4, 28);
-    arc(bx,25,0.75,0,Math.PI*2);
-    const kx = base + dir*14;
-    line(base,3,kx,3); line(base,47,kx,47);
+    line(base+dir*4, 22, base+dir*4, 28); arc(bx,25,0.75,0,Math.PI*2);
+    const kx = base + dir*14; line(base,3,kx,3); line(base,47,kx,47);
     if(side) arc(bx,25,23.75, Math.PI - a3, Math.PI + a3); else arc(bx,25,23.75, -a3, a3);
   }
 }
 let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(drawCourt, 150); });
 
+// ---------------------------------------------------------------- model (v3, see model.js)
+function phi(z){ return Math.exp(-0.5*z*z)/Math.sqrt(2*Math.PI); }
+function Phi(z){ const t=1/(1+0.3275911*Math.abs(z)/Math.SQRT2); const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-(z*z)/2); return z>=0?0.5*(1+y):0.5*(1-y); }
+const sdOf = mu => Math.max(M.minSd, M.spread*Math.max(mu,0));
+function eMax(mu,c){ const sd=sdOf(mu), z=(c-mu)/sd; return c*Phi(z)+mu*(1-Phi(z))+sd*phi(z); }
+/** Value of rolling into games with projections `projs`, playing optimally; ps[i] = chance he sits game i. */
+function contValue(projs, ps){
+  if(!projs.length) return null;
+  const p = i => ps?.[i] ?? M.scratch;
+  const n = projs.length;
+  let v = (1-p(n-1))*Math.max(0, projs[n-1]);
+  for(let i=n-2;i>=0;i--){ const pi = p(i); v = pi*v + (1-pi)*eMax(projs[i], v); }
+  return v;
+}
+function scratchFor(inj){
+  if(["Out","IR","Sus"].includes(inj)) return 1;
+  if(inj==="Doubtful") return 0.75;
+  if(["GTD","DTD","Questionable","Q"].includes(inj)) return M.gtdScratch;
+  return M.scratch;
+}
+
 // ---------------------------------------------------------------- data
 let S = { league:null, users:[], rosters:[], nbaState:null, schedule:null, schedAt:0, season:null, seasonAt:0,
-          week:null, maxWeek:null, data:null, lastOk:0, loading:false, focusDay:null, leagueLoaded:null };
-
+          week:null, maxWeek:null, data:null, lastOk:0, loading:false, focusDay:null, showAllRows:false, leagueLoaded:null,
+          raw:{} };
 async function getJSON(url){
   const r = await fetch(url, {cache:"no-store"});
   if(!r.ok) throw new Error(`Sleeper returned ${r.status}`);
   return r.json();
 }
-function phi(z){ return Math.exp(-0.5*z*z)/Math.sqrt(2*Math.PI); }
-function Phi(z){ const t=1/(1+0.3275911*Math.abs(z)/Math.SQRT2); const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-(z*z)/2); return z>=0?0.5*(1+y):0.5*(1-y); }
-const sdOf = mu => Math.max(MIN_SD, CV*Math.max(mu,0));
-function eMax(mu,c){ const sd=sdOf(mu), z=(c-mu)/sd; return c*Phi(z)+mu*(1-Phi(z))+sd*phi(z); }
-function contValue(projs){ if(!projs.length) return null; let v=Math.max(0,projs[projs.length-1]); for(let i=projs.length-2;i>=0;i--) v=eMax(projs[i],v); return v; }
-
 const etToday = () => new Intl.DateTimeFormat("en-CA",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
 const addDays = (iso,n) => { const d=new Date(iso+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); };
 const mondayOf = iso => addDays(iso, -((new Date(iso+"T12:00:00Z").getUTCDay()+6)%7));
 const shortDate = iso => new Date(iso+"T12:00:00Z").toLocaleDateString("en-US",{month:"short",day:"numeric",timeZone:"UTC"});
-const dayName = iso => DAYS[(new Date(iso+"T12:00:00Z").getUTCDay()+6)%7];
+const dowIdx = iso => (new Date(iso+"T12:00:00Z").getUTCDay()+6)%7;
+const dayName = iso => DAYS[dowIdx(iso)];
+const dayLong = iso => DAYS_LONG[dowIdx(iso)];
 const dayNum = iso => Number(iso.slice(8,10));
 const gameState = st => st==="complete" ? "done" : (st==="pre_game"||!st) ? "pre" : "live";
 const scorer = sc => stats => { let t=0; for(const k in sc){ const v=stats&&stats[k]; if(v) t+=v*sc[k]; } return Math.round(t*100)/100; };
@@ -156,7 +180,7 @@ async function loadAll(manual){
   if(S.loading) return; S.loading = true; setStatus("busy");
   try{
     const now = Date.now();
-    if(S.leagueLoaded !== cfg.leagueId){ S.week = null; S.leagueLoaded = cfg.leagueId; }
+    if(S.leagueLoaded !== cfg.leagueId){ S.week = null; S.leagueLoaded = cfg.leagueId; PI.tabs?.reset?.(); }
     const [st, lg, us, ro] = await Promise.all([
       getJSON(`${API}/state/nba`), getJSON(`${API}/league/${cfg.leagueId}`),
       getJSON(`${API}/league/${cfg.leagueId}/users`), getJSON(`${API}/league/${cfg.leagueId}/rosters`)
@@ -164,7 +188,7 @@ async function loadAll(manual){
     if(!lg) throw new Error("that league wasn't found");
     S.nbaState = st; S.league = lg; S.users = us || []; S.rosters = ro || [];
     if(!S.rosters.some(r=>r.roster_id===cfg.rosterId) && S.rosters.length){ cfg.rosterId = S.rosters[0].roster_id; saveCfg(); }
-    const season = lg.season || st.season;
+    const season = lg.season || st.season; S.seasonYear = season;
     S.maxWeek = Number(st.week) || 1;
     if(S.week==null) S.week = S.maxWeek;
     const wk = S.week;
@@ -179,10 +203,12 @@ async function loadAll(manual){
     ]);
     if(needSched){ S.schedule = sched || []; S.schedAt = now; }
     if(needSeason){ S.season = seasonStats || []; S.seasonAt = now; }
-    S.data = build(wk, matchups || [], stats || [], projs || []);
+    S.raw = { wk, matchups: matchups||[], stats: stats||[], projs: projs||[] };
+    S.data = build(wk, S.raw.matchups, S.raw.stats, S.raw.projs);
     S.lastOk = Date.now();
     $("err").hidden = true;
     render(); setStatus("ok");
+    if(current !== "console") PI.tabs?.render(current, {refresh:true});
   }catch(e){
     console.error(e);
     const box = $("err"); box.hidden = false;
@@ -212,6 +238,7 @@ function build(wk, matchups, stats, projs){
   for(const e of S.season){ absorb(e); const gp=e.stats?.gp; if(gp>0) avg[e.player_id] = fp(e.stats)/gp; }
   for(const e of projs){ absorb(e); if(e.date) (projBy[e.player_id] ||= {})[e.date] = {fp:fp(e.stats), opp:e.opponent, game_id:e.game_id}; }
   for(const e of stats){ absorb(e); if(e.date) (statBy[e.player_id] ||= {})[e.date] = {fp:fp(e.stats), opp:e.opponent, game_id:e.game_id}; }
+  S.info = info; S.avg = avg; S.fp = fp;
 
   const mByRoster = Object.fromEntries(matchups.map(m=>[m.roster_id,m]));
   const slotsAll = (S.league.roster_positions||[]).filter(p=>p!=="BN" && p!=="IR");
@@ -227,14 +254,13 @@ function build(wk, matchups, stats, projs){
     for(const [d,s] of Object.entries(sb)) if(!byDate[d]) byDate[d] = {date:d, opp:s.opp, st:gameStatus[s.game_id]||"done", game_id:s.game_id};
     for(const [d,p] of Object.entries(pb)) if(!byDate[d]) byDate[d] = {date:d, opp:p.opp, st:gameStatus[p.game_id]||(d<today?"done":"pre"), game_id:p.game_id};
     const gl = Object.values(byDate).filter(g=>days.includes(g.date)).sort((a,b)=>a.date.localeCompare(b.date));
-    let outApplied = false;
     for(const g of gl){
       const s = sb[g.date], p = pb[g.date];
       g.actual = g.st==="pre" ? null : (s ? s.fp : 0);
       g.proj = p ? p.fp : (base!=null ? base*0.95 : null);
-      if(g.st==="pre" && !outApplied && ["Out","IR","Sus"].includes(pi.inj)){ g.proj = 0; g.outAdj = true; outApplied = true; }
     }
     const done = gl.filter(g=>g.st==="done"), live = gl.find(g=>g.st==="live"), rem = gl.filter(g=>g.st==="pre");
+    rem.forEach((g,i)=>{ g.p = i===0 ? scratchFor(pi.inj) : M.scratch; if(g.p>=1) g.outAdj = true; });
     const P = Number(points ?? 0);
     let lock = "open", lockedOn = null;
     const latest = live || done[done.length-1];
@@ -243,9 +269,9 @@ function build(wk, matchups, stats, projs){
     const marked = marks[pid];
     if(lock==="rolling" && marked && latest && marked===latest.date){ lock="locked"; lockedOn=marked; }
     for(const g of gl){ g.counts = lock!=="locked" && latest && g===latest; g.lockedHere = lock==="locked" && g.date===lockedOn; }
-    const remProj = rem.map(g=>g.proj ?? 0);
-    const V = contValue(remProj);
-    rem.forEach((g,i)=>{ g.thr = contValue(remProj.slice(i+1)); });
+    const remProj = rem.map(g=>g.proj ?? 0), remP = rem.map(g=>g.p);
+    const V = contValue(remProj, remP);
+    rem.forEach((g,i)=>{ g.thr = contValue(remProj.slice(i+1), remP.slice(i+1)); });
     let verdict, ev, why = "", margin = null;
     const deadline = rem[0]?.date || null;
     if(!gl.length){ verdict="none"; ev=0; why="No games this week."; }
@@ -253,14 +279,25 @@ function build(wk, matchups, stats, projs){
     else if(live){
       const mu = Math.max(live.actual||0, live.proj||0);
       ev = V==null ? mu : eMax(mu, V); verdict="live"; margin = V;
-      why = V==null ? "His last game this week is in progress. Whatever he finishes with counts." : `In progress with ${f1(live.actual)}. When it ends, lock if he finishes at ${f1(V)} or more.`;
+      why = V==null ? "His last game this week is in progress. Whatever he finishes with counts." : `In progress with ${f1(live.actual)}. When it ends, lock him if he finishes with ${Math.ceil(V)} or more.`;
     }
     else if(done.length && !rem.length){ verdict="final"; ev=P; why=`No games left. ${f2(P)} from ${dayName(latest.date)} counts.`; }
     else if(done.length){
       ev = Math.max(P,V); margin = P-V; verdict = P>=V ? "lock" : "roll";
-      why = P>=V ? `${f2(P)} banked beats the ${f1(V)} you'd expect from rolling ${rem.length} more game${rem.length>1?"s":""}.`
-                 : `Rolling is worth about ${f1(V)} vs ${f2(P)} banked. Let it ride.`;
-    } else { verdict="wait"; ev=V ?? 0; why = rem.length ? `First game ${dayName(rem[0].date)}. Lock it if he scores ${rem[0].thr==null ? "anything (only game)" : f1(rem[0].thr)+" or more"}.` : ""; }
+      why = P>=V ? `Lock now: ${f2(P)} banked beats the ${f1(V)} his remaining ${rem.length} game${rem.length>1?"s are":" is"} worth on average.`
+                 : `Let it ride: his remaining ${rem.length} game${rem.length>1?"s are":" is"} worth about ${f1(V)} on average, more than the ${f2(P)} banked.`;
+    } else { verdict="wait"; ev=V ?? 0; why = rem.length ? (rem[0].thr==null ? `Only one game (${dayName(rem[0].date)}). Whatever he scores counts.` : `First game ${dayName(rem[0].date)}. Lock him right after it if he scores ${Math.ceil(rem[0].thr)} or more.`) : ""; }
+    // did a past lock already pay off? (for the wins banner)
+    let win = null;
+    if(lock==="locked" && isStarter){
+      const after = gl.filter(g=>g.date>lockedOn && g.st==="done");
+      const afterAll = gl.filter(g=>g.date>lockedOn);
+      if(after.length){
+        const atV = contValue(afterAll.map(g=>g.proj ?? 0), afterAll.map(()=>M.scratch));
+        const rollNow = after[after.length-1].actual;
+        if(P >= (atV ?? 0) && P - rollNow >= 3) win = { gain: P - rollNow, rollNow, lockedOn };
+      }
+    }
     const flags = [];
     if(["Out","IR","Sus"].includes(pi.inj)) flags.push(["warn", pi.inj==="IR" ? "IR" : "OUT next game"]);
     else if(pi.inj) flags.push(["caution", pi.inj]);
@@ -269,7 +306,7 @@ function build(wk, matchups, stats, projs){
     if(isStarter && verdict==="final" && P===0) flags.push(["warn","Zero on the board"]);
     if(lock==="unknown") flags.push(["info","Score doesn't match a game yet"]);
     return {pid, name:pi.name, pos:pi.pos, team:pi.team, inj:pi.inj, slot, isStarter, avg:base, points:P, games:gl, done, rem, live,
-            lock, lockedOn, verdict, ev, why, margin, deadline, flags, latest, V, marked};
+            lock, lockedOn, verdict, ev, why, margin, deadline, flags, latest, V, marked, win};
   }
   function teamModel(rid){
     const m = mByRoster[rid], r = S.rosters.find(x=>x.roster_id===rid); if(!r) return null;
@@ -282,22 +319,35 @@ function build(wk, matchups, stats, projs){
   }
   const mine = teamModel(cfg.rosterId);
   const oppRid = mine && matchups.find(x=>x.matchup_id===mine.matchup_id && x.roster_id!==cfg.rosterId)?.roster_id;
-  return {wk, days, today, mine, opp: oppRid ? teamModel(oppRid) : null, weekKey};
+  return {wk, days, today, mine, opp: oppRid ? teamModel(oppRid) : null, weekKey, teamModel};
 }
 
-// ---------------------------------------------------------------- render
+// ---------------------------------------------------------------- render: Lock Console
 const PILL = {lock:["p-lock","Lock"], roll:["p-roll","Roll"], locked:["p-locked","Locked"], wait:["p-wait","Wait"],
               live:["p-live","Live"], final:["p-final","Final"], none:["p-none","No games"]};
 const pill = v => { const [c,t] = PILL[v] || ["p-none",v]; return `<span class="pill ${c}">${t}</span>`; };
 const flagHTML = fl => fl.length ? `<div class="flags">${fl.map(([k,t])=>`<span class="flag f-${k}">${esc(t)}</span>`).join("")}</div>` : "";
 const VCOLOR = {lock:"var(--lock)", roll:"var(--roll)", live:"var(--warn)", wait:"var(--ink-3)"};
+const TROPHY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4z"/><path d="M17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3"/></svg>`;
 
 function render(){
   const D = S.data; if(!D || !D.mine) return;
   $("leagueLine").textContent = `${(S.league.name||"").trim()} · ${D.mine.label.name}`;
   $("wkLabel").textContent = `Week ${D.wk}`;
   $("prevWk").disabled = D.wk<=1; $("nextWk").disabled = D.wk>=S.maxWeek;
-  renderMatchup(D); renderTiles(D); renderWeek(D); renderAct(D); renderGrid(D);
+  if(S.focusDay && !D.days.includes(S.focusDay)) S.focusDay = null;
+  renderWins(D); renderMatchup(D); renderTiles(D); renderWeek(D); renderAct(D); renderGrid(D);
+}
+
+function renderWins(D){
+  const wins = D.mine.starters.filter(p=>p.win).sort((a,b)=>b.win.gain-a.win.gain);
+  const box = $("winBanner");
+  if(!wins.length){ box.hidden = true; return; }
+  const tot = wins.reduce((a,p)=>a+p.win.gain,0);
+  box.hidden = false;
+  box.innerHTML = `<div class="wb-ic">${TROPHY}</div><div class="wb-t"><b>CourtVision win${wins.length>1?"s":""} this week: +${f1(tot)} pts saved</b>
+    <span>${wins.slice(0,3).map(p=>`${esc(p.name)} locked ${dayName(p.win.lockedOn)} at ${f2(p.points)}; rolling would have left ${f2(p.win.rollNow)} (+${f1(p.win.gain)})`).join(" · ")}</span></div>
+    <button class="btn" data-goto="performance">See all wins</button>`;
 }
 
 function renderMatchup(D){
@@ -314,10 +364,8 @@ function renderMatchup(D){
     <div class="donut" role="img" aria-label="${Math.round(share*100)} percent of projected points">
       <svg viewBox="0 0 150 150">
         <circle cx="75" cy="75" r="${R}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="14"/>
-        <circle cx="75" cy="75" r="${R}" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="14" stroke-linecap="round"
-          stroke-dasharray="${oppLen} ${C}" stroke-dashoffset="${-(share*C)}"/>
-        <circle cx="75" cy="75" r="${R}" fill="none" stroke="var(--accent-text)" stroke-width="14" stroke-linecap="round"
-          stroke-dasharray="${youLen} ${C}"/>
+        <circle cx="75" cy="75" r="${R}" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="14" stroke-linecap="round" stroke-dasharray="${oppLen} ${C}" stroke-dashoffset="${-(share*C)}"/>
+        <circle cx="75" cy="75" r="${R}" fill="none" stroke="var(--accent-text)" stroke-width="14" stroke-linecap="round" stroke-dasharray="${youLen} ${C}"/>
       </svg>
       <div class="c"><b>${Math.round(share*100)}%</b><small>projected share</small></div>
     </div>
@@ -348,11 +396,12 @@ function renderWeek(D){
   $("weekSub").textContent = `${shortDate(D.days[0])} – ${shortDate(D.days[6])}`;
   $("days").innerHTML = D.days.map(d=>{
     const playing = D.mine.starters.filter(p=>p.games.some(g=>g.date===d));
+    const live = playing.filter(p=>p.lock!=="locked");
     const dots = playing.map(p=>`<i class="${p.lock==="locked"?"":"a"}"></i>`).join("");
     const cls = ["day", d===D.today?"today":"", d<D.today?"past":"", S.focusDay===d?"focus":""].join(" ");
-    return `<button class="${cls}" data-day="${d}" aria-pressed="${S.focusDay===d}"><span class="dn">${dayName(d)}</span><span class="dd">${dayNum(d)}</span><span class="dots">${dots}</span><span class="cnt">${playing.length} g</span></button>`;
+    return `<button class="${cls}" data-day="${d}" aria-pressed="${S.focusDay===d}" title="${playing.length} starters play, ${live.length} still in play"><span class="dn">${dayName(d)}</span><span class="dd">${dayNum(d)}</span><span class="dots">${dots}</span><span class="cnt">${playing.length} play</span></button>`;
   }).join("");
-  $("focusNote").textContent = S.focusDay ? `${dayName(S.focusDay)} highlighted · tap again to clear` : "Tap a day to highlight it in the grid";
+  $("focusNote").innerHTML = S.focusDay ? `Showing ${dayLong(S.focusDay)} only · <button class="linkbtn" data-clearday>Show whole week</button>` : "Tap a day to see that day's game plan";
 }
 
 function ring(p){
@@ -364,8 +413,37 @@ function ring(p){
   return `<svg class="ring" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="${R}" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="3"/>
     <circle cx="17" cy="17" r="${R}" fill="none" stroke="${VCOLOR[p.verdict]||"var(--ink-3)"}" stroke-width="3" stroke-linecap="round" stroke-dasharray="${frac*C} ${C}"/></svg>`;
 }
+function dayPlan(p, d, D){
+  const g = p.games.find(x=>x.date===d); if(!g) return null;
+  const isLast = p.games[p.games.length-1] === g;
+  const opp = `${g.home?"vs":"@"} ${g.opp||""}`;
+  if(p.lock==="locked" && p.lockedOn < d) return {tone:"locked", head:`Already locked (${dayName(p.lockedOn)}, ${f2(p.points)})`, body:`${dayLong(d)} ${opp} won't change his score. Nothing to do.`};
+  if(g.st==="done"){
+    if(g.lockedHere) return {tone:"locked", head:`Scored ${f2(g.actual)} · you locked it`, body:`This is the score that counts for the week.`};
+    if(g.counts) return {tone:"counts", head:`Scored ${f2(g.actual)} · counting now`, body: p.rem.length ? `${p.verdict==="lock"?"Lock it":"Let it ride"}: rolling into ${p.rem.length} more game${p.rem.length>1?"s":""} is worth about ${f1(p.V)}.` : "No games left, so this score stands."};
+    return {tone:"past", head:`Scored ${f2(g.actual)}`, body:`Replaced by a later game.`};
+  }
+  if(g.st==="live") return {tone:"live", head:`Playing now · ${f1(g.actual)} so far`, body: p.why};
+  if(g.outAdj) return {tone:"warn", head:`Listed ${p.inj}`, body:`Expect him to sit ${dayLong(d)}. If you're rolling, his banked score drops to 0 for this game.`};
+  if(isLast) return {tone:"final", head:`Projected ${f1(g.proj)} · his last game`, body: p.lock==="locked" ? "" : `Whatever he scores ${dayLong(d)} counts, unless you lock an earlier game first.`};
+  return {tone:"plan", head:`Projected ${f1(g.proj)} · lock if ${Math.ceil(g.thr)}+`, body:`If he scores ${Math.ceil(g.thr)} or more ${dayLong(d)}, lock him right after the game. Below that, let it ride.`};
+}
 function renderAct(D){
   const ps = D.mine.starters;
+  if(S.focusDay){
+    const d = S.focusDay;
+    const rows = ps.map(p=>({p, plan: dayPlan(p,d,D)})).filter(x=>x.plan);
+    $("actTitle").textContent = `${dayLong(d)}, ${shortDate(d)}`;
+    $("actSub").textContent = `${rows.length} of your starters play${d===D.today?" today":""}`;
+    $("alist").innerHTML = rows.length ? rows.map(({p,plan})=>{
+      const g = p.games.find(x=>x.date===d);
+      return `<div class="arow dp tone-${plan.tone}"><span class="dpic"></span>
+        <div class="who"><div class="n">${esc(p.name)}</div><div class="m">${esc(p.slot)} · ${esc(p.team||"FA")} · ${g.home?"vs":"@"} ${esc(g.opp||"")}</div></div>
+        <div class="dpb"><b>${esc(plan.head)}</b><span>${esc(plan.body)}</span></div>${pill(p.verdict)}</div>`;
+    }).join("") : `<div class="empty">None of your starters play ${dayLong(d)}.</div>`;
+    return;
+  }
+  $("actTitle").textContent = "Act now";
   const act = ps.filter(p=>["lock","roll","live"].includes(p.verdict) || (p.verdict==="wait" && p.deadline===D.today));
   const order = {lock:0, live:1, roll:2, wait:3};
   act.sort((x,y)=> (x.deadline||"9").localeCompare(y.deadline||"9") || order[x.verdict]-order[y.verdict] || (y.margin??0)-(x.margin??0));
@@ -376,42 +454,56 @@ function renderAct(D){
     const n = p.rem[0];
     const next = n ? `${dayName(n.date)} ${n.home?"vs":"@"} ${esc(n.opp||"")}${n.date===D.today?" · today":""}` : (p.live ? "in progress" : "–");
     const banked = p.verdict==="wait" ? "–" : f2(p.live ? p.live.actual : p.points);
-    const brk = p.verdict==="wait" ? (n?.thr==null ? "any" : f1(n.thr)) : f1(p.V);
+    const brk = p.verdict==="wait" ? (n?.thr==null ? "any" : `${Math.ceil(n.thr)}+`) : f1(p.V);
     return `<div class="arow">${ring(p)}
       <div class="who"><div class="n">${esc(p.name)}</div><div class="m">${esc(p.slot)} · ${esc(p.team||"FA")} · next ${next}</div><div class="why">${esc(p.why)}</div>${flagHTML(p.flags)}</div>
       <div class="nbs">
         <div class="nb"><b>${banked}</b><small>${p.live?"live":"banked"}</small></div>
-        <div class="nb"><b>${brk}</b><small>${p.verdict==="wait"?"lock if ≥":"roll value"}</small></div>
+        <div class="nb"><b>${brk}</b><small>${p.verdict==="wait"?"lock if":"rolling worth"}</small></div>
         <div class="nb"><b>${f1(p.avg)}</b><small>season avg</small></div>
       </div>${pill(p.verdict)}</div>`;
   }).join("");
 }
 
+function cellHTML(p, g, D){
+  const val = g.st==="pre" ? f1(g.proj) : f2(g.actual);
+  let tag = "", kind = g.st==="pre" ? "proj" : "done", title = "";
+  if(g.lockedHere){ tag = "locked ✓"; title = `He scored ${val} and you locked it. This is his score for the week.`; }
+  else if(g.counts && g.st==="live"){ tag = "live"; title = `In progress: ${val} so far. This will be his score unless you lock a later game.`; }
+  else if(g.counts){ tag = "counting"; title = `He scored ${val}. Right now this is his score for the week.`; }
+  else if(g.st==="live"){ tag = "live"; title = `In progress: ${val} so far.`; }
+  else if(g.st==="done"){ tag = p.lock==="locked" && g.date>p.lockedOn ? "ignored" : "replaced"; title = `He scored ${val}. A ${p.lock==="locked"?"locked":"later"} game counts instead.`; }
+  else if(g.outAdj){ tag = "likely out"; title = `Projected ${val}, but he's listed ${p.inj}.`; }
+  else if(p.isStarter && p.lock!=="locked" && g.thr!=null){ tag = `lock if ${Math.ceil(g.thr)}+`; title = `Projected ${val}. If he scores ${Math.ceil(g.thr)} or more here, lock him right after this game.`; }
+  else if(p.isStarter && p.lock!=="locked"){ tag = "last game"; title = `Projected ${val}. His last game this week: it counts unless you lock earlier.`; }
+  else { title = `Projected ${val}.`; }
+  const cls = ["g", kind, g.st==="live"?"live":"", g.counts?"counts":"", g.lockedHere?"lockedg":"", (tag==="replaced"||tag==="ignored")?"faded":""].join(" ");
+  return `<div class="${cls}" title="${esc(title)}"><span class="o">${g.home?"vs":"@"} ${esc(g.opp||"")}</span><span class="v">${val}</span><span class="tag">${tag || (g.st==="pre"?"proj":"")}</span></div>`;
+}
 function renderGrid(D){
-  const t = D.mine, cols = D.days.length + 6;
-  $("grid").querySelector("thead").innerHTML = `<tr><th>Slot</th><th>Player</th><th class="r">Avg</th>${D.days.map(d=>`<th class="${d===D.today?"today":""}" style="text-align:center">${dayName(d)} ${dayNum(d)}</th>`).join("")}<th class="r">Counts</th><th>Call</th><th>Flags</th></tr>`;
+  const t = D.mine, cols = D.days.length + 6, fd = S.focusDay;
+  $("grid").querySelector("thead").innerHTML = `<tr><th>Slot</th><th>Player</th><th class="r">Avg</th>${D.days.map(d=>`<th class="dayh ${d===D.today?"today":""} ${fd===d?"focus":""}">${dayName(d)} ${dayNum(d)}</th>`).join("")}<th class="r">Banked</th><th>Call</th><th>Flags</th></tr>`;
   const row = p => {
     const cells = D.days.map(d=>{
       const g = p.games.find(x=>x.date===d);
-      const td = `td class="day ${d===D.today?"today":""} ${S.focusDay===d?"focus":""}"`;
-      if(!g) return `<${td}><span class="nog">·</span></td>`;
-      const cls = ["g", g.st==="pre"?"proj":"done", g.st==="live"?"live":"", g.counts?"counts":"", g.lockedHere?"lockedg":""].join(" ");
-      const val = g.st==="pre" ? f1(g.proj) : f2(g.actual);
-      const tag = g.lockedHere ? "locked" : g.counts ? (g.st==="live"?"live":"counts") : g.st==="live" ? "live"
-                : (g.st==="pre" && g.thr!=null && p.lock!=="locked" && p.isStarter) ? `lock ≥${Math.round(g.thr)}` : g.outAdj ? "out" : "";
-      return `<${td}><div class="${cls}" title="${g.st==="pre"?"Projected":"Actual"} ${val}"><span class="o">${g.home?"vs":"@"} ${esc(g.opp||"")}</span><span class="v">${val}</span>${tag?`<span class="tag">${tag}</span>`:""}</div></td>`;
+      const td = `td class="day ${d===D.today?"today":""} ${fd===d?"focus":""} ${fd && fd!==d?"dim":""}"`;
+      return g ? `<${td}>${cellHTML(p,g,D)}</td>` : `<${td}><span class="nog">·</span></td>`;
     }).join("");
     const mark = (p.isStarter && p.lock==="rolling" && p.latest?.st==="done" && p.rem.length) ? `<button class="mini" data-mark="${p.pid}" data-date="${p.latest.date}">I locked this</button>`
                : (p.marked && p.lock==="locked" && p.lockedOn===p.marked) ? `<button class="mini" data-unmark="${p.pid}">Undo mark</button>` : "";
+    const sub = !p.isStarter ? "" : p.verdict==="roll" ? `rolling worth ${f1(p.V)}` : p.verdict==="lock" ? `beats ${f1(p.V)} rolling` : p.verdict==="wait" && p.rem[0]?.thr!=null ? `lock if ${Math.ceil(p.rem[0].thr)}+ ${dayName(p.rem[0].date)}` : p.verdict==="live" && p.V!=null ? `lock if ${Math.ceil(p.V)}+` : "";
     return `<tr class="${p.isStarter?"":"bench"}"><td class="slot">${esc(p.slot)}</td>
       <td class="player"><div class="n">${esc(p.name)}</div><div class="s">${esc(p.pos)} · ${esc(p.team||"FA")}</div>${mark}</td>
       <td class="r num">${f1(p.avg)}</td>${cells}
-      <td class="r num">${f2(p.points)}</td><td>${p.isStarter?pill(p.verdict):'<span class="nog">bench</span>'}</td>
+      <td class="r num">${p.games.some(g=>g.st!=="pre")?f2(p.points):"–"}</td><td>${p.isStarter?`${pill(p.verdict)}${sub?`<div class="callsub">${esc(sub)}</div>`:""}`:'<span class="nog">bench</span>'}</td>
       <td>${flagHTML(p.isStarter?p.flags:p.flags.filter(f=>f[0]!=="info"))}</td></tr>`;
   };
+  let starters = t.starters, bench = t.bench, hidden = 0;
+  if(fd && !S.showAllRows){ const keep = p => p.games.some(g=>g.date===fd); hidden = starters.filter(p=>!keep(p)).length + bench.filter(p=>!keep(p)).length; starters = starters.filter(keep); bench = bench.filter(keep); }
   $("grid").querySelector("tbody").innerHTML =
-    `<tr class="sep"><td colspan="${cols}">Starters · ${f1(t.points)} on the board · ${f1(t.ev)} projected</td></tr>` + t.starters.map(row).join("") +
-    (t.bench.length ? `<tr class="sep"><td colspan="${cols}">Bench · doesn't score</td></tr>` + t.bench.map(row).join("") : "");
+    `<tr class="sep"><td colspan="${cols}">Starters · ${f1(t.points)} banked · ${f1(t.ev)} projected${fd?` · playing ${dayLong(fd)}`:""}</td></tr>` + (starters.map(row).join("") || `<tr><td colspan="${cols}" class="muted">No starters play ${fd?dayLong(fd):"this week"}.</td></tr>`) +
+    (bench.length ? `<tr class="sep"><td colspan="${cols}">Bench · doesn't score</td></tr>` + bench.map(row).join("") : "") +
+    (hidden ? `<tr><td colspan="${cols}"><button class="linkbtn" data-showall>Show ${hidden} player${hidden>1?"s":""} not playing ${dayLong(fd)}</button></td></tr>` : "");
 }
 
 function setStatus(mode){
@@ -427,6 +519,21 @@ function tick(){
   if(!S.loading && !$("liveDot").classList.contains("err")) $("liveDot").className = "live" + (s>300?" stale":"");
   $("statusTxt").textContent = `Live · ${s<60 ? s+"s" : Math.floor(s/60)+" min"} ago`;
 }
+
+// ---------------------------------------------------------------- tabs
+let current = "console";
+function showTab(name, opts={}){
+  if(!TABS.includes(name)) name = "console";
+  current = name;
+  for(const t of TABS){ $(`view-${t}`).hidden = t!==name; }
+  document.querySelectorAll("[data-tab]").forEach(b=>{ const on = b.dataset.tab===name; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
+  $("weeknavWrap").hidden = name!=="console";
+  if(location.hash.slice(1) !== name && !opts.fromHash) history.replaceState(null, "", name==="console" ? location.pathname + location.search : `#${name}`);
+  if(name!=="console" && S.data) PI.tabs?.render(name);
+  track("tab", name);
+  if(!opts.keepScroll) window.scrollTo({top:0});
+}
+window.addEventListener("hashchange", ()=>showTab(location.hash.slice(1)||"console", {fromHash:true}));
 
 // ---------------------------------------------------------------- league finder (shared by setup + settings)
 function leagueFinder(el, onPick){
@@ -452,7 +559,7 @@ function leagueFinder(el, onPick){
           return `<option value="${r.roster_id}" ${mineR&&mineR.roster_id===r.roster_id?"selected":""}>${esc(nm)}${mineR&&mineR.roster_id===r.roster_id?" (yours)":""}</option>`; }).join("");
         let pickEl = out.querySelector(".teampick");
         if(!pickEl){ pickEl = document.createElement("div"); pickEl.className = "teampick"; out.appendChild(pickEl); }
-        pickEl.innerHTML = `<div class="note" style="margin-top:6px">Your team in this league</div><select id="lfTeam" style="height:42px;width:100%;border-radius:12px;border:1px solid var(--edge);background:rgba(20,24,32,.9);padding:0 10px">${opts}</select>`;
+        pickEl.innerHTML = `<div class="note" style="margin-top:6px">Your team in this league</div><select id="lfTeam" class="sel">${opts}</select>`;
         const sel = pickEl.querySelector("select");
         const fire = () => onPick({leagueId: lid, rosterId: Number(sel.value)});
         sel.addEventListener("change", fire); fire();
@@ -528,14 +635,14 @@ function openSettings(){
   const share = `${location.origin}${location.pathname}?league=${cfg.leagueId}&team=${cfg.rosterId}`;
   root.innerHTML = `<div class="scrim" style="place-items:stretch end;padding:0" id="drawScrim"><aside class="drawer glass" role="dialog" aria-modal="true" aria-labelledby="setTitle">
     <div class="drawhead"><h2 id="setTitle">Settings</h2><button class="iconbtn" id="closeSet" aria-label="Close settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-    <section><h3>Favorite team</h3><select id="setTeam" aria-label="Favorite team"><option value="">No team (neutral colors)</option>${TEAMS.map(x=>`<option value="${x.abbr}" ${x.abbr===cfg.team?"selected":""}>${esc(x.city)} ${esc(x.name)}</option>`).join("")}</select></section>
+    <section><h3>Favorite team</h3><select id="setTeam" class="sel" aria-label="Favorite team"><option value="">No team (neutral colors)</option>${TEAMS.map(x=>`<option value="${x.abbr}" ${x.abbr===cfg.team?"selected":""}>${esc(x.city)} ${esc(x.name)}</option>`).join("")}</select></section>
     <section><h3>Color scheme</h3><div class="schemes" id="schemes">${schemes}</div><p class="note" style="margin:8px 0 0">The first color leads: it sets the accent and the painted lane on the court.</p></section>
-    <section><h3>Your team in ${esc((S.league?.name||"this league").trim())}</h3><select id="setRoster" aria-label="Your fantasy team">${rosterOpts}</select></section>
+    <section><h3>Your team in ${esc((S.league?.name||"this league").trim())}</h3><select id="setRoster" class="sel" aria-label="Your fantasy team">${rosterOpts}</select></section>
     <section><h3>Switch league</h3><div id="setFinder"></div><button class="btn" id="useDefault" style="margin-top:10px">Back to ${esc(DEFAULT_LABEL.league)}</button></section>
     <section><h3>Share</h3><p class="note" style="margin:0 0 8px">This link opens straight to this league and team. Everyone picks their own colors.</p>
       <div class="finder"><input class="search" id="shareUrl" readonly value="${esc(share)}" aria-label="Share link"><button class="btn" id="copyShare">Copy</button></div></section>
     <section><h3>Help</h3><div class="finder"><button class="btn" id="replayTour">Replay the tour</button><button class="btn" id="rerunSetup">Run setup again</button></div>
-      <p class="note" style="margin:10px 0 0">Settings are saved on this device.</p></section>
+      <p class="note" style="margin:10px 0 0">Settings are saved on this device. Lock model: ${esc(M.version)}.</p></section>
   </aside></div>`;
   document.body.style.overflow = "hidden";
   const close = () => closeOverlay();
@@ -544,7 +651,7 @@ function openSettings(){
   $("drawScrim").addEventListener("click", e=>{ if(e.target.id==="drawScrim") close(); });
   $("setTeam").addEventListener("change", e=>{ cfg.team = e.target.value || null; cfg.scheme = 0; saveCfg(); applyTheme(); openSettings(); });
   $("schemes").addEventListener("click", e=>{ const b=e.target.closest("[data-scheme]"); if(!b) return; cfg.scheme = Number(b.dataset.scheme); saveCfg(); applyTheme(); openSettings(); });
-  $("setRoster").addEventListener("change", e=>{ cfg.rosterId = Number(e.target.value); saveCfg(); loadAll(); openSettings(); });
+  $("setRoster").addEventListener("change", e=>{ cfg.rosterId = Number(e.target.value); saveCfg(); PI.tabs?.reset?.(); loadAll(); openSettings(); });
   leagueFinder($("setFinder"), pick => { cfg.leagueId = pick.leagueId; cfg.rosterId = pick.rosterId; saveCfg(); S.data=null; loadAll(true); });
   $("useDefault").addEventListener("click", ()=>{ cfg.leagueId = DEFAULTS.leagueId; cfg.rosterId = DEFAULTS.rosterId; saveCfg(); S.data=null; loadAll(true).then(openSettings); });
   $("copyShare").addEventListener("click", async ()=>{ const b=$("copyShare"); try{ await navigator.clipboard.writeText(share); b.textContent="Copied"; }catch(e){ $("shareUrl").select(); b.textContent="Selected"; } setTimeout(()=>{ if(b.isConnected) b.textContent="Copy"; },1600); });
@@ -555,28 +662,29 @@ function openSettings(){
 
 // ---------------------------------------------------------------- tour
 const TOUR = [
-  { sel:"#matchup", k:"Matchup", t:"Where your week stands",
+  { tab:"console", sel:"#matchup", k:"Matchup", t:"Where your week stands",
     p:"Live points from Sleeper on the left, projected finish on the right. Projections assume you keep making the best lock calls for the rest of the week." },
-  { sel:"#tiles", k:"At a glance", t:"Three numbers that matter",
-    p:"How many starters are locked, how many need a decision, and how many games your unlocked starters have left." },
-  { sel:"#weekCard", k:"The week", t:"Today is highlighted",
-    p:"Each dot is one of your starters playing that day. Lit dots are still in play; dim ones are already locked. Tap a day to highlight it in the grid." },
-  { sel:"#actNow", k:"Act now", t:"Your to-do list before tip-off",
-    p:"LOCK means bank his score now in Sleeper. ROLL means his remaining games are worth more on average, so let it ride. WAIT means he hasn't played yet; the number shown is what he needs to score to be worth locking." },
-  { sel:"#gridCard", k:"Lock grid", t:"Every game, every starter",
-    p:"Italic numbers are projections, bold are actual points. A team-colored outline marks the game currently counting, green marks a locked game, and 'lock ≥ 28' is the break-even for that game." },
-  { sel:"[data-mark], #gridCard", k:"One quirk", t:"\"I locked this\"",
-    p:"Right after a game, Sleeper's data can't tell a lock from a rolling score until his next game. If you locked him, tap \"I locked this\" so this device knows. It sorts itself out after his next game." },
-  { sel:"#settingsBtn", k:"Make it yours", t:"Settings",
-    p:"Switch your favorite team, flip to their secondary or tertiary colors, change fantasy team or league, copy a share link, or replay this tour. Refresh is next to it, and the page also updates itself every 2 minutes." }
+  { tab:"console", sel:"#weekCard", k:"The week", t:"Tap a day for its game plan",
+    p:"Each dot is one of your starters playing that day; lit dots are still in play. Tap a day and the console switches to that day's plan: who plays, and the score that should make you lock each of them." },
+  { tab:"console", sel:"#actNow", k:"Act now", t:"Your to-do list before tip-off",
+    p:"LOCK: bank his score now in Sleeper. ROLL: his remaining games are worth more on average, so let it ride. WAIT: he hasn't played yet, and 'lock if 32+' is the score that would be worth locking." },
+  { tab:"console", sel:"#gridCard", k:"Lock grid", t:"How to read a row",
+    p:"Bold numbers are points he scored; italic numbers are projections. The team-colored box is the score counting right now, green is a locked game, and 'lock if 32+' under a future game means: if he scores 32 or more there, lock him right after." },
+  { tab:"console", sel:"[data-mark], #gridCard", k:"One quirk", t:"\"I locked this\"",
+    p:"Right after a game, Sleeper's data can't tell a lock from a rolling score until his next game. If you locked him, tap \"I locked this\" so this device knows." },
+  { tab:"console", sel:"#tabbar", k:"More tabs", t:"Performance, Team, Players, Trade Lab",
+    p:"Performance tracks how well you lock (and every CourtVision win). Team and Players show trends. Trade Lab (beta) flags buy-low and sell-high moves using stats, news and depth charts." },
+  { tab:"console", sel:"#settingsBtn", k:"Make it yours", t:"Settings",
+    p:"Switch your favorite team, flip to their secondary or tertiary colors, change fantasy team or league, copy a share link, or replay this tour." }
 ];
 function startTour(){
   let i = 0;
+  showTab("console", {keepScroll:true});
   root.innerHTML = `<div class="tour" id="tour" role="dialog" aria-modal="true" aria-labelledby="tipTitle"><div class="spot" id="spot"></div><div class="tip glass" id="tip"></div></div>`;
   const spot = $("spot"), tip = $("tip");
   const finish = () => { cfg.toured = true; saveCfg(); closeOverlay(); window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
   root._cancel = finish;
-  function target(){ return TOUR[i].sel.split(",").map(s=>document.querySelector(s.trim())).find(Boolean) || $("overview"); }
+  function target(){ return TOUR[i].sel.split(",").map(s=>document.querySelector(s.trim())).find(e=>e && e.offsetParent!==null) || $("overview"); }
   function place(){
     const el = target(); if(!el) return;
     const r = el.getBoundingClientRect(), pad = 8;
@@ -603,23 +711,30 @@ function startTour(){
 }
 
 // ---------------------------------------------------------------- events
-$("refreshBtn").addEventListener("click", ()=>loadAll(true));
+$("refreshBtn").addEventListener("click", ()=>{ track("act","refresh"); loadAll(true); });
 $("prevWk").addEventListener("click", ()=>{ if(S.week>1){ S.week--; S.focusDay=null; loadAll(); } });
 $("nextWk").addEventListener("click", ()=>{ if(S.week<S.maxWeek){ S.week++; S.focusDay=null; loadAll(); } });
 $("settingsBtn").addEventListener("click", openSettings);
 $("helpBtn").addEventListener("click", startTour);
-$("days").addEventListener("click", e=>{ const b=e.target.closest("[data-day]"); if(!b||!S.data) return; S.focusDay = S.focusDay===b.dataset.day ? null : b.dataset.day; renderWeek(S.data); renderGrid(S.data); });
+$("days").addEventListener("click", e=>{
+  const b=e.target.closest("[data-day]"); if(!b||!S.data) return;
+  S.focusDay = S.focusDay===b.dataset.day ? null : b.dataset.day; S.showAllRows = false; track("act","day");
+  render();
+  if(S.focusDay) $("actNow").scrollIntoView({behavior:"smooth", block:"nearest"});
+});
+$("weekCard").addEventListener("click", e=>{ if(e.target.closest("[data-clearday]")){ S.focusDay = null; render(); } });
+$("view-console").addEventListener("click", e=>{
+  const g = e.target.closest("[data-goto]"); if(g){ showTab(g.dataset.goto); return; }
+  if(e.target.closest("[data-showall]")){ S.showAllRows = true; renderGrid(S.data); }
+});
 $("grid").addEventListener("click", e=>{
-  const b = e.target.closest("button"); if(!b || !S.data) return;
+  const b = e.target.closest("button[data-mark],button[data-unmark]"); if(!b || !S.data) return;
   let marks = {}; try { marks = JSON.parse(store.get(S.data.weekKey) || "{}"); } catch(_){}
   if(b.dataset.mark) marks[b.dataset.mark] = b.dataset.date;
   if(b.dataset.unmark) delete marks[b.dataset.unmark];
-  store.set(S.data.weekKey, JSON.stringify(marks)); loadAll();
+  store.set(S.data.weekKey, JSON.stringify(marks)); track("act","mark"); loadAll();
 });
-document.querySelectorAll(".rail [data-jump]").forEach(b=>b.addEventListener("click", ()=>{
-  $(b.dataset.jump).scrollIntoView({behavior:"smooth", block:"start"});
-  document.querySelectorAll(".rail button").forEach(x=>x.classList.toggle("on", x===b));
-}));
+document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click", ()=>showTab(b.dataset.tab)));
 document.querySelector('.rail [data-act="settings"]').addEventListener("click", openSettings);
 document.querySelector('.rail [data-act="tour"]').addEventListener("click", startTour);
 document.addEventListener("keydown", e=>{
@@ -630,9 +745,15 @@ setInterval(()=>{ if(document.visibilityState==="visible") loadAll(); }, REFRESH
 setInterval(tick, 5000);
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible" && Date.now()-S.lastOk > REFRESH_MS) loadAll(); });
 
+// ---------------------------------------------------------------- shared namespace for tabs.js
+window.PI = { S, get cfg(){ return cfg; }, DEFAULTS, M, API, API2, $, esc, f1, f2, store, getJSON, scorer, contValue, eMax, scratchFor,
+  etToday, addDays, mondayOf, shortDate, dayName, dayLong, dayNum, gameState, teamLabel, teamBy, TEAMS, pill, flagHTML, track, TROPHY,
+  showTab, get current(){ return current; } };
+
 // ---------------------------------------------------------------- boot
+track("visit");
 applyTheme();
+showTab(TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "console", {fromHash:true, keepScroll:true});
 loadAll();
 if(!cfg.onboarded) openSetup(0);
-window.__pi = { contValue, eMax, cfg: () => cfg };
 })();
