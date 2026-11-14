@@ -22,6 +22,7 @@ v4 (`tools/backtest_slots.py`) makes the call per lineup slot instead of per pla
 - `index.html` – layout and styles
 - `app.js` – data loading, decision model, Lock Console, setup, settings, tour
 - `console.js` – v4 slot engine: per-slot lock/sub/roll calls drawing on bench and free agents, live hold/swap (ESPN scoreboard for tip times, clock and margin)
+- `impact.js` – Player impact (beta) on the Performance tab: a player's games played vs a fantasy team's weekly score this season, and last season's correlation with and without his own points
 - `tabs.js` – Performance, Team, Players, Trade Lab
 - `charts.js` – small SVG chart kit
 - `model.js` – model parameters and backtest results

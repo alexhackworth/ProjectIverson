@@ -125,6 +125,7 @@ async function renderPerformance(){
         ${misses.length ? `<div class="misslist">${misses.map(r=>`<div class="missrow"><b>−${f1(r.miss.lost)}</b><div><div class="n">${esc(nameOf(r.pid))} · Week ${r.w}</div><span>${r.miss.kind==="rolled-past" ? `Rolled past ${f2(r.miss.modelScore)} on ${P.dayName(r.miss.modelDay)} (CourtVision said lock); ended with ${f2(r.real)}.` : `Locked ${f2(r.real)} on ${P.dayName(r.miss.realDay)}; CourtVision said roll, and he later scored ${f2(r.miss.modelScore)}.`}</span></div></div>`).join("")}</div>` : `<div class="empty">No big misses yet.</div>`}
       </article>
     </section>
+    <section class="card" id="impactCard"></section>
     <section class="card"><div class="cardhead"><h2>Model report card</h2><span class="sub">${esc(M.version)} · tested on ${esc(M.backtest.league)} ${esc(M.backtest.season)}, ${esc(M.backtest.test)}</span></div>
       <div class="grid2 inner"><div><h3 class="mini-h">Average points kept per starter-week</h3><div id="chBT"></div><p class="note">Share of the possible gain (hindsight minus always-roll) in brackets. Upgrade over v2: +${f2(M.backtest.gain.mean)} pts per starter-week (95% CI +${f2(M.backtest.gain.lo)} to +${f2(M.backtest.gain.hi)}), about +${f1(M.backtest.gain.mean*11)} per team per week.</p></div>
       <div><h3 class="mini-h">Assumptions tested</h3><ul class="checks">${M.backtest.checks.map(c=>`<li class="${c.ok?"ok":"fix"}"><b>${esc(c.k)}</b><span>${esc(c.v)}</span><em>${c.ok?"holds":"fixed in v3"}</em></li>`).join("")}</ul>
@@ -143,6 +144,7 @@ async function renderPerformance(){
   C.hbars($("chBT"), { fmt: v=>f2(v), items: M.backtest.results.map(r=>({ label: r.name, sub: `(${pct(r.cap)})`, value: r.pts, mine: r.mine, color: r.mine ? ACC : r.ref ? "rgba(243,245,248,.22)" : "rgba(243,245,248,.42)" })) });
   C.hbars($("chBT25"), { fmt: pct, items: M.backtest.managers2025.map(r=>({ label: r.team, value: r.iq, mine: r.mine, color: r.mine ? ACC : "rgba(243,245,248,.38)", tip:`<b>${esc(r.team)}</b><div>Lock IQ 2025<span>${pct(r.iq)}</span></div><div>CourtVision v3 on their starters<span>${pct(r.model)}</span></div><div>Left on the table<span>${f2(r.left)}/starter-week</span></div>` })) });
 
+  window.PI_IMPACT?.mount($("impactCard"));
   let u = {}; try{ u = JSON.parse(P.store.get("pi:usage") || "{}"); }catch(e){}
   const days = Array.from({length:14},(_,i)=>{ const d = new Date(); d.setDate(d.getDate()-13+i); return d.toLocaleDateString("en-CA"); });
   C.bars($("chUse"), { labels: days.map(d=>d.slice(5).replace("-","/")), values: days.map(d=>u.days?.[d]?.v||0), yName:"Visits", xName:"Day", aria:"Visits per day", fmt: v=>String(Math.round(v)) });
